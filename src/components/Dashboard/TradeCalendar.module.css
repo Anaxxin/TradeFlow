@@ -1,0 +1,156 @@
+.container {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem 1.25rem 1.75rem 1.25rem;
+    /* Balanced padding */
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+@media (max-width: 640px) {
+    .container {
+        overflow-x: auto;
+    }
+}
+
+.title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+    /* Reduced from 1rem */
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.85rem;
+    width: 100%;
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+@media (max-width: 640px) {
+    .container {
+        padding: 0.75rem 1rem 1.25rem 1rem;
+    }
+
+    .grid {
+        gap: 0.5rem;
+        min-width: 280px;
+        width: max-content;
+    }
+
+    .dayBox {
+        padding: 0.5rem;
+    }
+
+    .dateNum {
+        font-size: 0.875rem;
+    }
+
+    .pnl {
+        font-size: 0.95rem;
+    }
+
+    .dayLabel {
+        font-size: 0.7rem;
+    }
+}
+
+.dayLabel {
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding-bottom: 0.25rem;
+    /* Tightened space over blocks */
+    text-transform: uppercase;
+    opacity: 0.8;
+    /* Slightly more visible */
+}
+
+.spacer {
+    aspect-ratio: 1;
+}
+
+.dayBox {
+    aspect-ratio: 1;
+    /* Back to square for tighter grid */
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.25rem;
+    transition: all 0.2s;
+    cursor: default;
+    position: relative;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.dayBox:hover {
+    border-color: var(--accent-primary);
+    background-color: var(--bg-tertiary);
+    transform: translateY(-2px);
+}
+
+.dateNum {
+    position: absolute;
+    bottom: 0.35rem;
+    left: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.pnl {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    text-align: center;
+    white-space: nowrap;
+    padding-bottom: 0.5rem;
+    /* Pushes content up slightly from true center */
+}
+
+.tradeCountBadge {
+    position: absolute;
+    bottom: 0.35rem;
+    right: 0.5rem;
+    top: auto;
+    margin-top: 0;
+    font-size: 0.7rem;
+    font-weight: 500;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.win {
+    background-color: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+.win .pnl {
+    color: var(--accent-success);
+}
+
+.loss {
+    background-color: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+.loss .pnl {
+    color: var(--accent-danger);
+}

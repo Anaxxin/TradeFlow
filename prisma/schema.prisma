@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Account {
+  id                    String         @id @default(uuid())
+  name                  String
+  type                  String // Live, Demo, Prop (Apex, Topstep, etc.)
+  initial_balance       Float
+  max_daily_loss        Float?
+  max_drawdown          Float?
+  is_trailing_drawdown  Boolean        @default(false)
+  trades                Trade[]
+  journal_entries       JournalEntry[]
+  created_at            DateTime       @default(now())
+  updated_at            DateTime       @updatedAt
+}
+
+model Trade {
+  id              String   @id @default(uuid())
+  account_id      String
+  account         Account  @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  symbol          String // e.g. "ES", "NQ"
+  contract_expiry String? // e.g. "12-25"
+  entry_price     Float
+  exit_price      Float
+  stop_loss       Float    @default(0)
+  quantity        Int
+  direction       String // "LONG" or "SHORT"
+  commission      Float    @default(0)
+  fees            Float    @default(0)
+  pnl             Float
+  is_be           Boolean  @default(false)
+  entry_time      DateTime
+  exit_time       DateTime
+  setup_tags      String[] // Array of strings for tags
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+}
+
+model JournalEntry {
+  id         String   @id @default(uuid())
+  account_id String
+  account    Account  @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  date       DateTime @db.Date // Storing just the date part
+  content    String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([account_id, date]) // One journal entry per day per account
+}
