@@ -112,7 +112,7 @@ const KPICards: React.FC<KPIProps> = ({
                 <div className={styles.label}>Avg RR</div>
                 <div className={styles.value}>{avgRR.toFixed(2)}</div>
                 <div className={styles.subtext}>
-                    Risk:Reward
+                    Risk : Reward
                 </div>
             </div>
 
