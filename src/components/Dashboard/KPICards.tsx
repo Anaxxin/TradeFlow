@@ -107,12 +107,12 @@ const KPICards: React.FC<KPIProps> = ({
                 </div>
             </div>
 
-            {/* Avg. RR Card */}
+            {/* Avg RR Card */}
             <div className={styles.card}>
-                <div className={styles.label}>Avg. RR</div>
+                <div className={styles.label}>Avg RR</div>
                 <div className={styles.value}>{avgRR.toFixed(2)}</div>
                 <div className={styles.subtext}>
-                    Reward:Risk
+                    Risk:Reward
                 </div>
             </div>
 
