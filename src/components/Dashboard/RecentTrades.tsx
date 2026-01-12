@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import styles from './RecentTrades.module.css';
 import EditTradeModal from './EditTradeModal';
 import DeleteTradeModal from './DeleteTradeModal';
@@ -37,10 +37,33 @@ interface RecentTradesProps {
     trades: Trade[];
 }
 
+const RECENT_TRADES_FILTER_STORAGE_KEY = 'tradezella_recent_trades_filter_preference';
+
 const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
     const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
     const [deletingTrade, setDeletingTrade] = useState<{ id: string, symbol: string } | null>(null);
+    
+    // Start with default to avoid hydration mismatch
     const [filterPeriod, setFilterPeriod] = useState<'this-week' | 'last-week' | 'this-month' | 'this-year' | 'all'>('this-week');
+    const [isMounted, setIsMounted] = useState(false);
+
+    // Load preference from localStorage after mount (client-side only)
+    useEffect(() => {
+        setIsMounted(true);
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem(RECENT_TRADES_FILTER_STORAGE_KEY);
+            if (saved && ['this-week', 'last-week', 'this-month', 'this-year', 'all'].includes(saved)) {
+                setFilterPeriod(saved as 'this-week' | 'last-week' | 'this-month' | 'this-year' | 'all');
+            }
+        }
+    }, []);
+
+    // Save preference to localStorage whenever it changes
+    useEffect(() => {
+        if (isMounted && typeof window !== 'undefined') {
+            localStorage.setItem(RECENT_TRADES_FILTER_STORAGE_KEY, filterPeriod);
+        }
+    }, [filterPeriod, isMounted]);
 
     const handleEditSuccess = () => {
         setEditingTrade(null);
@@ -106,7 +129,10 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
                 <select
                     className={styles.periodSelect}
                     value={filterPeriod}
-                    onChange={(e) => setFilterPeriod(e.target.value as any)}
+                    onChange={(e) => {
+                        const newValue = e.target.value as 'this-week' | 'last-week' | 'this-month' | 'this-year' | 'all';
+                        setFilterPeriod(newValue);
+                    }}
                     style={{
                         background: 'var(--bg-secondary)',
                         color: 'var(--text-primary)',

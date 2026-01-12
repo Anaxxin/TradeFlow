@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styles from './AddAccountModal.module.css'; // Reusing styles
 import { updateAccount } from '@/app/actions/accounts';
 
@@ -8,21 +8,42 @@ interface EditAccountModalProps {
     account: {
         id: string;
         name: string;
+        type?: string;
         max_daily_loss?: number | null;
         max_drawdown?: number | null;
         is_trailing_drawdown?: boolean;
     };
     onClose: () => void;
-    onSuccess: () => void;
+    onSuccess: (updatedAccount?: any) => void;
 }
 
 const EditAccountModal: React.FC<EditAccountModalProps> = ({ account, onClose, onSuccess }) => {
     const [name, setName] = useState(account.name);
+    const [type, setType] = useState(account.type || 'Prop Account');
     const [maxDailyLoss, setMaxDailyLoss] = useState(account.max_daily_loss?.toString() || '');
     const [maxDrawdown, setMaxDrawdown] = useState(account.max_drawdown?.toString() || '');
     const [isTrailing, setIsTrailing] = useState(account.is_trailing_drawdown || false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    const accountTypes = [
+        { value: 'Live Account', label: 'Live Personal', color: 'red' },
+        { value: 'Prop Account', label: 'Prop Firm (Apex, Topstep)', color: 'yellow' },
+        { value: 'Demo Account', label: 'Demo / Paper', color: 'green' },
+    ];
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -39,13 +60,15 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ account, onClose, o
         const res = await updateAccount(
             account.id,
             name,
+            type,
             maxDailyLoss ? parseFloat(maxDailyLoss) : null,
             maxDrawdown ? parseFloat(maxDrawdown) : null,
             isTrailing
         );
 
-        if (res.success) {
-            onSuccess();
+        if (res.success && res.data) {
+            // Pass the updated account data to onSuccess
+            onSuccess(res.data);
             onClose();
         } else {
             setError('Failed to update account.');
@@ -72,6 +95,43 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ account, onClose, o
                             onChange={(e) => setName(e.target.value)}
                             required
                         />
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label>Type</label>
+                        <div className={styles.selectWrapper} ref={dropdownRef}>
+                            <div 
+                                className={styles.customSelect}
+                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            >
+                                <span className={styles.dotIndicator}>
+                                    <span className={`${styles.accountTypeDot} ${
+                                        type === 'Demo Account' ? styles.green :
+                                        type === 'Prop Account' ? styles.yellow :
+                                        styles.red
+                                    }`}></span>
+                                </span>
+                                <span>{accountTypes.find(t => t.value === type)?.label}</span>
+                                <span style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>▼</span>
+                            </div>
+                            {isDropdownOpen && (
+                                <div className={styles.dropdownMenu}>
+                                    {accountTypes.map((accountType) => (
+                                        <div
+                                            key={accountType.value}
+                                            className={`${styles.dropdownOption} ${type === accountType.value ? styles.selected : ''}`}
+                                            onClick={() => {
+                                                setType(accountType.value);
+                                                setIsDropdownOpen(false);
+                                            }}
+                                        >
+                                            <span className={`${styles.accountTypeDot} ${styles[accountType.color]}`}></span>
+                                            <span>{accountType.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className={styles.formGroup}>

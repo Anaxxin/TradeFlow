@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styles from '../../app/page.module.css'; // Importing from app styles for header
+import modalStyles from './AddAccountModal.module.css';
 import AddAccountModal from './AddAccountModal';
 import AddTradeModal from './AddTradeModal';
 import EditAccountModal from './EditAccountModal';
@@ -47,6 +48,7 @@ export default function DashboardClient({
     const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
     const [isEditAccountModalOpen, setIsEditAccountModalOpen] = useState(false);
     const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
+    const [showNoAccountMessage, setShowNoAccountMessage] = useState(false);
 
     // Sync state with URL or LocalStorage
     useEffect(() => {
@@ -68,8 +70,101 @@ export default function DashboardClient({
     };
 
     const handleDataRefresh = () => {
-        window.location.reload();
+        router.refresh();
     };
+
+    const handleAccountCreate = (newAccount: any) => {
+        // Map Prisma account fields to our Account interface
+        const accountData: Account = {
+            id: newAccount.id,
+            name: newAccount.name,
+            type: newAccount.type,
+            initial_balance: newAccount.initial_balance,
+            max_daily_loss: newAccount.max_daily_loss,
+            max_drawdown: newAccount.max_drawdown,
+            is_trailing_drawdown: newAccount.is_trailing_drawdown,
+        };
+
+        // Add the new account to local state
+        setAccounts(prevAccounts => [accountData, ...prevAccounts]);
+        
+        // Select the new account
+        setSelectedAccountId(accountData.id);
+        localStorage.setItem(STORAGE_KEY, accountData.id);
+        
+        // Navigate to the new account and do a full page reload to get fresh data
+        window.location.href = `?accountId=${accountData.id}`;
+    };
+
+    const handleAccountEdit = (updatedAccount: any) => {
+        // Update the account in the local state immediately
+        // Map Prisma account fields to our Account interface
+        const accountUpdate: Account = {
+            id: updatedAccount.id,
+            name: updatedAccount.name,
+            type: updatedAccount.type,
+            initial_balance: updatedAccount.initial_balance,
+            max_daily_loss: updatedAccount.max_daily_loss,
+            max_drawdown: updatedAccount.max_drawdown,
+            is_trailing_drawdown: updatedAccount.is_trailing_drawdown,
+        };
+        
+        setAccounts(prevAccounts => 
+            prevAccounts.map(acc => 
+                acc.id === accountUpdate.id ? accountUpdate : acc
+            )
+        );
+        // Also refresh server data
+        router.refresh();
+    };
+
+    const handleAccountDelete = async (deletedAccountId: string) => {
+        // Find the account to switch to before deletion
+        const updatedAccounts = accounts.filter(acc => acc.id !== deletedAccountId);
+        let newAccountId = '';
+        
+        // If the deleted account was selected, switch to another account
+        if (selectedAccountId === deletedAccountId) {
+            newAccountId = updatedAccounts.length > 0 ? updatedAccounts[0].id : '';
+            if (newAccountId) {
+                localStorage.setItem(STORAGE_KEY, newAccountId);
+            } else {
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        } else {
+            // Keep the current account selected
+            newAccountId = selectedAccountId;
+        }
+
+        // Use a full page reload to ensure fresh data from server
+        // This is necessary because Next.js may cache server component data
+        // and router.refresh() alone doesn't always clear the cache properly
+        if (newAccountId) {
+            window.location.href = `?accountId=${newAccountId}`;
+        } else {
+            window.location.href = '/';
+        }
+    };
+
+    // Sync accounts state when initialAccounts prop changes (after server refresh)
+    useEffect(() => {
+        const accountsChanged = initialAccounts.length !== accounts.length || 
+            initialAccounts.some((acc, idx) => acc.id !== accounts[idx]?.id);
+        
+        if (accountsChanged) {
+            setAccounts(initialAccounts);
+            // Update selected account if current one no longer exists
+            if (selectedAccountId && !initialAccounts.some(acc => acc.id === selectedAccountId)) {
+                const newAccountId = initialAccounts.length > 0 ? initialAccounts[0].id : '';
+                setSelectedAccountId(newAccountId);
+                if (newAccountId) {
+                    localStorage.setItem(STORAGE_KEY, newAccountId);
+                    router.push(`?accountId=${newAccountId}`);
+                }
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialAccounts]);
 
     const selectedAccount = accounts.find(a => a.id === selectedAccountId);
 
@@ -142,17 +237,7 @@ export default function DashboardClient({
                         </div>
                     )}
 
-                    {/* 2. Log Trade Button */}
-                    <button
-                        onClick={() => setIsTradeModalOpen(true)}
-                        className={styles.addAccountBtn}
-                        style={{ backgroundColor: 'var(--accent-primary)', color: 'white', borderColor: 'var(--accent-primary)' }}
-                        disabled={!selectedAccountId}
-                    >
-                        + Log Trade
-                    </button>
-
-                    {/* 3. Account Selector + Edit Button */}
+                    {/* 2. Account Selector + Edit Button */}
                     <div className={styles.accountSelectorWrapper} style={{ display: 'flex', alignItems: 'center' }}>
                         <select
                             className={styles.accountSelect}
@@ -184,6 +269,36 @@ export default function DashboardClient({
                         )}
                     </div>
 
+                    {/* Account Type Indicator */}
+                    {selectedAccount && (
+                        <span className={`${styles.accountTypeIndicator} ${
+                            selectedAccount.type === 'Demo Account' ? styles.green :
+                            selectedAccount.type === 'Prop Account' ? styles.yellow :
+                            styles.red
+                        }`} title={
+                            selectedAccount.type === 'Demo Account' ? 'Demo Account' :
+                            selectedAccount.type === 'Prop Account' ? 'Prop Firm Account' :
+                            'Live Account'
+                        }></span>
+                    )}
+
+                    {/* 3. Log Trade Button */}
+                    <button
+                        onClick={() => {
+                            if (accounts.length === 0) {
+                                setShowNoAccountMessage(true);
+                            } else if (!selectedAccountId) {
+                                setShowNoAccountMessage(true);
+                            } else {
+                                setIsTradeModalOpen(true);
+                            }
+                        }}
+                        className={styles.addAccountBtn}
+                        style={{ backgroundColor: 'var(--accent-primary)', color: 'white', borderColor: 'var(--accent-primary)' }}
+                    >
+                        + Log Trade
+                    </button>
+
                     {/* 4. Add Account (Far Right) */}
                     <button onClick={() => setIsAccountModalOpen(true)} className={styles.addAccountBtn}>
                         + Account
@@ -196,7 +311,7 @@ export default function DashboardClient({
             {isAccountModalOpen && (
                 <AddAccountModal
                     onClose={() => setIsAccountModalOpen(false)}
-                    onSuccess={handleDataRefresh}
+                    onSuccess={handleAccountCreate}
                 />
             )}
 
@@ -212,7 +327,7 @@ export default function DashboardClient({
                 <EditAccountModal
                     account={selectedAccount}
                     onClose={() => setIsEditAccountModalOpen(false)}
-                    onSuccess={handleDataRefresh}
+                    onSuccess={handleAccountEdit}
                 />
             )}
 
@@ -220,8 +335,36 @@ export default function DashboardClient({
                 <DeleteAccountModal
                     account={selectedAccount}
                     onClose={() => setIsDeleteAccountModalOpen(false)}
-                    onSuccess={handleDataRefresh}
+                    onSuccess={() => handleAccountDelete(selectedAccount.id)}
                 />
+            )}
+
+            {showNoAccountMessage && (
+                <div className={modalStyles.overlay} onClick={() => setShowNoAccountMessage(false)}>
+                    <div className={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+                        <div className={modalStyles.header}>
+                            <h3>No Account Available</h3>
+                            <button onClick={() => setShowNoAccountMessage(false)} className={modalStyles.closeBtn}>&times;</button>
+                        </div>
+                        <div className={modalStyles.form}>
+                            <p style={{ color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                                Please create a trading account to log a trade.
+                            </p>
+                            <div className={modalStyles.actions}>
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        setShowNoAccountMessage(false);
+                                        setIsAccountModalOpen(true);
+                                    }} 
+                                    className={modalStyles.submitBtn}
+                                >
+                                    Create Account
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </>
     );

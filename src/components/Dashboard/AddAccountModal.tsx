@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styles from './AddAccountModal.module.css';
 import { createAccount } from '@/app/actions/accounts';
 
 interface AddAccountModalProps {
     onClose: () => void;
-    onSuccess: () => void;
+    onSuccess: (newAccount?: any) => void;
 }
 
 const AddAccountModal: React.FC<AddAccountModalProps> = ({ onClose, onSuccess }) => {
@@ -18,6 +18,25 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({ onClose, onSuccess })
     const [isTrailing, setIsTrailing] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    const accountTypes = [
+        { value: 'Live Account', label: 'Live Personal', color: 'red' },
+        { value: 'Prop Account', label: 'Prop Firm (Apex, Topstep)', color: 'yellow' },
+        { value: 'Demo Account', label: 'Demo / Paper', color: 'green' },
+    ];
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -35,13 +54,13 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({ onClose, onSuccess })
             name,
             type,
             parseFloat(balance),
-            maxDailyLoss ? parseFloat(maxDailyLoss) : undefined,
-            maxDrawdown ? parseFloat(maxDrawdown) : undefined,
+            maxDailyLoss ? parseFloat(maxDailyLoss) : null,
+            maxDrawdown ? parseFloat(maxDrawdown) : null,
             isTrailing
         );
 
-        if (res.success) {
-            onSuccess();
+        if (res.success && res.data) {
+            onSuccess(res.data);
             onClose();
         } else {
             setError('Failed to create account. Please try again.');
@@ -73,11 +92,39 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({ onClose, onSuccess })
 
                     <div className={styles.formGroup}>
                         <label>Type</label>
-                        <select value={type} onChange={(e) => setType(e.target.value)}>
-                            <option value="Live Account">Live Personal</option>
-                            <option value="Prop Account">Prop Firm (Apex, Topstep)</option>
-                            <option value="Demo Account">Demo / Paper</option>
-                        </select>
+                        <div className={styles.selectWrapper} ref={dropdownRef}>
+                            <div 
+                                className={styles.customSelect}
+                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            >
+                                <span className={styles.dotIndicator}>
+                                    <span className={`${styles.accountTypeDot} ${
+                                        type === 'Demo Account' ? styles.green :
+                                        type === 'Prop Account' ? styles.yellow :
+                                        styles.red
+                                    }`}></span>
+                                </span>
+                                <span>{accountTypes.find(t => t.value === type)?.label}</span>
+                                <span style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>▼</span>
+                            </div>
+                            {isDropdownOpen && (
+                                <div className={styles.dropdownMenu}>
+                                    {accountTypes.map((accountType) => (
+                                        <div
+                                            key={accountType.value}
+                                            className={`${styles.dropdownOption} ${type === accountType.value ? styles.selected : ''}`}
+                                            onClick={() => {
+                                                setType(accountType.value);
+                                                setIsDropdownOpen(false);
+                                            }}
+                                        >
+                                            <span className={`${styles.accountTypeDot} ${styles[accountType.color]}`}></span>
+                                            <span>{accountType.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className={styles.formGroup}>
@@ -121,7 +168,6 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({ onClose, onSuccess })
                             onChange={(e) => setMaxDrawdown(e.target.value)}
                         />
                     </div>
-
 
                     <div className={styles.actions}>
                         <button type="button" onClick={onClose} className={styles.cancelBtn}>Cancel</button>

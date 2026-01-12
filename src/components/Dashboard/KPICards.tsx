@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './KPICards.module.css';
 
 interface KPIProps {
@@ -18,11 +18,33 @@ interface KPIProps {
     avgRR: number;
 }
 
+const PNL_VIEW_STORAGE_KEY = 'tradezella_pnl_view_preference';
+
 const KPICards: React.FC<KPIProps> = ({
     netPnL, winRate, avgRR, avgWin, avgLoss, totalTrades,
     dailyPnL, dailyTradesCount, monthlyPnL, monthlyTradesCount, yearlyPnL, yearlyTradesCount
 }) => {
+    // Start with default to avoid hydration mismatch
     const [pnlView, setPnlView] = useState<'net' | 'daily' | 'monthly' | 'yearly'>('daily');
+    const [isMounted, setIsMounted] = useState(false);
+
+    // Load preference from localStorage after mount (client-side only)
+    useEffect(() => {
+        setIsMounted(true);
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem(PNL_VIEW_STORAGE_KEY);
+            if (saved && ['net', 'daily', 'monthly', 'yearly'].includes(saved)) {
+                setPnlView(saved as 'net' | 'daily' | 'monthly' | 'yearly');
+            }
+        }
+    }, []);
+
+    // Save preference to localStorage whenever it changes
+    useEffect(() => {
+        if (isMounted && typeof window !== 'undefined') {
+            localStorage.setItem(PNL_VIEW_STORAGE_KEY, pnlView);
+        }
+    }, [pnlView, isMounted]);
 
     const getCurrentPnL = () => {
         switch (pnlView) {
@@ -55,7 +77,10 @@ const KPICards: React.FC<KPIProps> = ({
                     <select
                         className={styles.pnlSelect}
                         value={pnlView}
-                        onChange={(e) => setPnlView(e.target.value as any)}
+                        onChange={(e) => {
+                            const newValue = e.target.value as 'net' | 'daily' | 'monthly' | 'yearly';
+                            setPnlView(newValue);
+                        }}
                         style={{ background: 'transparent', color: 'var(--text-secondary)', border: 'none', fontSize: '0.75rem', cursor: 'pointer', outline: 'none' }}
                     >
                         <option value="net">All Time</option>

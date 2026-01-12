@@ -4,11 +4,11 @@ import prisma from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
 export async function createAccount(
-    name: string,
-    type: string,
+    name: string, 
+    type: string, 
     initialBalance: number,
-    maxDailyLoss?: number,
-    maxDrawdown?: number,
+    maxDailyLoss?: number | null,
+    maxDrawdown?: number | null,
     isTrailingDrawdown?: boolean
 ) {
     try {
@@ -19,7 +19,7 @@ export async function createAccount(
                 initial_balance: initialBalance,
                 max_daily_loss: maxDailyLoss,
                 max_drawdown: maxDrawdown,
-                is_trailing_drawdown: isTrailingDrawdown || false,
+                is_trailing_drawdown: isTrailingDrawdown ?? false,
             },
         });
 
@@ -44,21 +44,28 @@ export async function getAccounts() {
 }
 
 export async function updateAccount(
-    id: string,
+    id: string, 
     name: string,
-    maxDailyLoss?: number | null,
-    maxDrawdown?: number | null,
+    type?: string,
+    maxDailyLoss?: number | null, 
+    maxDrawdown?: number | null, 
     isTrailingDrawdown?: boolean
 ) {
     try {
+        const updateData: any = { 
+            name,
+            max_daily_loss: maxDailyLoss,
+            max_drawdown: maxDrawdown,
+            is_trailing_drawdown: isTrailingDrawdown ?? false,
+        };
+
+        if (type) {
+            updateData.type = type;
+        }
+
         const account = await prisma.account.update({
             where: { id },
-            data: {
-                name,
-                max_daily_loss: maxDailyLoss,
-                max_drawdown: maxDrawdown,
-                is_trailing_drawdown: isTrailingDrawdown || false,
-            },
+            data: updateData,
         });
 
         revalidatePath('/');

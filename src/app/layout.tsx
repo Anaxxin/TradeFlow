@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TradeFlow by anxn",
+  title: "TradeFlow Journal by anxn",
   description: "Futures Trading Journal",
 };
 
