@@ -3,10 +3,11 @@ import { Resend } from 'resend';
 import prisma from '@/lib/db';
 import { hash } from 'bcryptjs';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy init inside POST handler
 
 export async function POST(req: Request) {
     try {
+        const resend = new Resend(process.env.RESEND_API_KEY || 're_placeholder');
         const data = await req.json();
         const { name, email, password, paymentMethod, transactionId } = data;
 
