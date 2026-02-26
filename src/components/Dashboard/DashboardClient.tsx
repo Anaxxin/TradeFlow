@@ -2,12 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { signOut } from 'next-auth/react'; // Import signOut
 import styles from '../../app/page.module.css'; // Importing from app styles for header
 import modalStyles from './AddAccountModal.module.css';
 import AddAccountModal from './AddAccountModal';
 import AddTradeModal from './AddTradeModal';
 import EditAccountModal from './EditAccountModal';
 import DeleteAccountModal from './DeleteAccountModal';
+
+import Link from 'next/link';
 
 interface Account {
     id: string;
@@ -57,7 +60,7 @@ export default function DashboardClient({
         // If no ID in URL but we have one in storage, redirect
         if (!urlAccountId && storedId && accounts.some(a => a.id === storedId)) {
             setSelectedAccountId(storedId);
-            router.push(`?accountId=${storedId}`);
+            router.push(`/dashboard?accountId=${storedId}`);
         } else if (urlAccountId) {
             setSelectedAccountId(urlAccountId);
         }
@@ -66,7 +69,7 @@ export default function DashboardClient({
     const handleAccountChange = (id: string) => {
         setSelectedAccountId(id);
         localStorage.setItem(STORAGE_KEY, id);
-        router.push(`?accountId=${id}`);
+        router.push(`/dashboard?accountId=${id}`);
     };
 
     const handleDataRefresh = () => {
@@ -87,13 +90,13 @@ export default function DashboardClient({
 
         // Add the new account to local state
         setAccounts(prevAccounts => [accountData, ...prevAccounts]);
-        
+
         // Select the new account
         setSelectedAccountId(accountData.id);
         localStorage.setItem(STORAGE_KEY, accountData.id);
-        
+
         // Navigate to the new account and do a full page reload to get fresh data
-        window.location.href = `?accountId=${accountData.id}`;
+        window.location.href = `/dashboard?accountId=${accountData.id}`;
     };
 
     const handleAccountEdit = (updatedAccount: any) => {
@@ -108,9 +111,9 @@ export default function DashboardClient({
             max_drawdown: updatedAccount.max_drawdown,
             is_trailing_drawdown: updatedAccount.is_trailing_drawdown,
         };
-        
-        setAccounts(prevAccounts => 
-            prevAccounts.map(acc => 
+
+        setAccounts(prevAccounts =>
+            prevAccounts.map(acc =>
                 acc.id === accountUpdate.id ? accountUpdate : acc
             )
         );
@@ -122,7 +125,7 @@ export default function DashboardClient({
         // Find the account to switch to before deletion
         const updatedAccounts = accounts.filter(acc => acc.id !== deletedAccountId);
         let newAccountId = '';
-        
+
         // If the deleted account was selected, switch to another account
         if (selectedAccountId === deletedAccountId) {
             newAccountId = updatedAccounts.length > 0 ? updatedAccounts[0].id : '';
@@ -140,17 +143,17 @@ export default function DashboardClient({
         // This is necessary because Next.js may cache server component data
         // and router.refresh() alone doesn't always clear the cache properly
         if (newAccountId) {
-            window.location.href = `?accountId=${newAccountId}`;
+            window.location.href = `/dashboard?accountId=${newAccountId}`;
         } else {
-            window.location.href = '/';
+            window.location.href = '/dashboard';
         }
     };
 
     // Sync accounts state when initialAccounts prop changes (after server refresh)
     useEffect(() => {
-        const accountsChanged = initialAccounts.length !== accounts.length || 
+        const accountsChanged = initialAccounts.length !== accounts.length ||
             initialAccounts.some((acc, idx) => acc.id !== accounts[idx]?.id);
-        
+
         if (accountsChanged) {
             setAccounts(initialAccounts);
             // Update selected account if current one no longer exists
@@ -159,7 +162,7 @@ export default function DashboardClient({
                 setSelectedAccountId(newAccountId);
                 if (newAccountId) {
                     localStorage.setItem(STORAGE_KEY, newAccountId);
-                    router.push(`?accountId=${newAccountId}`);
+                    router.push(`/dashboard?accountId=${newAccountId}`);
                 }
             }
         }
@@ -176,16 +179,16 @@ export default function DashboardClient({
         : null;
 
     const isMaxDrawdownReached = maxDrawdownDollarValue !== null && totalPnL <= -maxDrawdownDollarValue;
-    const isMaxDrawdownWarning = maxDrawdownDollarValue !== null && 
-        !isMaxDrawdownReached && 
+    const isMaxDrawdownWarning = maxDrawdownDollarValue !== null &&
+        !isMaxDrawdownReached &&
         totalPnL <= -(maxDrawdownDollarValue - 1000);
 
     return (
         <>
             <header className={styles.header}>
-                <div className={styles.logo}>
+                <Link href="/dashboard" className={styles.logo} style={{ textDecoration: 'none' }}>
                     TradeFlow <span className={styles.brandSubtitle}>by anxn</span>
-                </div>
+                </Link>
 
                 <div className={styles.accountControls}>
                     {/* 1. Balance (Far Left of controls) */}
@@ -271,15 +274,14 @@ export default function DashboardClient({
 
                     {/* Account Type Indicator */}
                     {selectedAccount && (
-                        <span className={`${styles.accountTypeIndicator} ${
-                            selectedAccount.type === 'Demo Account' ? styles.green :
+                        <span className={`${styles.accountTypeIndicator} ${selectedAccount.type === 'Demo Account' ? styles.green :
                             selectedAccount.type === 'Prop Account' ? styles.yellow :
-                            styles.red
-                        }`} title={
-                            selectedAccount.type === 'Demo Account' ? 'Demo Account' :
-                            selectedAccount.type === 'Prop Account' ? 'Prop Firm Account' :
-                            'Live Account'
-                        }></span>
+                                styles.red
+                            }`} title={
+                                selectedAccount.type === 'Demo Account' ? 'Demo Account' :
+                                    selectedAccount.type === 'Prop Account' ? 'Prop Firm Account' :
+                                        'Live Account'
+                            }></span>
                     )}
 
                     {/* 3. Log Trade Button */}
@@ -301,7 +303,25 @@ export default function DashboardClient({
 
                     {/* 4. Add Account (Far Right) */}
                     <button onClick={() => setIsAccountModalOpen(true)} className={styles.addAccountBtn}>
-                        + Account
+                        + Trade Account
+                    </button>
+
+                    {/* 5. Profile */}
+                    <Link
+                        href="/dashboard/profile"
+                        className={styles.addAccountBtn}
+                        style={{ backgroundColor: 'transparent', border: '1px solid #333', marginLeft: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                    >
+                        Profile
+                    </Link>
+
+                    {/* 6. Sign Out (Far Right) */}
+                    <button
+                        onClick={() => signOut({ callbackUrl: '/login' })}
+                        className={styles.addAccountBtn}
+                        style={{ backgroundColor: 'transparent', border: '1px solid #333', marginLeft: '10px' }}
+                    >
+                        Sign Out
                     </button>
                 </div>
             </header>
@@ -351,12 +371,12 @@ export default function DashboardClient({
                                 Please create a trading account to log a trade.
                             </p>
                             <div className={modalStyles.actions}>
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => {
                                         setShowNoAccountMessage(false);
                                         setIsAccountModalOpen(true);
-                                    }} 
+                                    }}
                                     className={modalStyles.submitBtn}
                                 >
                                     Create Account

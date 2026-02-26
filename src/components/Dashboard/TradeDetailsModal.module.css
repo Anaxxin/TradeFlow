@@ -1,0 +1,334 @@
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal {
+    background: #0b1021;
+    /* Darker blue matching calendar */
+    width: 900px;
+    max-width: 95vw;
+    height: 80vh;
+    border-radius: 16px;
+    padding: 2rem;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(30, 58, 138, 0.4);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    color: white;
+}
+
+.closeBtn {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+/* Header Section */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.titleGroup {
+    display: flex;
+    flex-direction: column;
+}
+
+.title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+    margin: 0;
+}
+
+.stats {
+    display: flex;
+    gap: 1.5rem;
+    font-weight: 600;
+    margin-right: 2rem;
+}
+
+.statItem {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.statLabel {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.statValue {
+    font-size: 1.25rem;
+}
+
+.profit {
+    color: #4ade80;
+}
+
+.loss {
+    color: #f87171;
+}
+
+.be {
+    color: #facc15;
+}
+
+/* Main Content Area */
+.content {
+    flex: 1;
+    display: flex;
+    gap: 2rem;
+    overflow: hidden;
+}
+
+.leftColumn {
+    flex: 1.2;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    overflow-y: auto;
+    padding-right: 1rem;
+}
+
+.rightColumn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+
+/* Notes Section */
+.sectionTitle {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    color: #bfdbfe;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.noteInput {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #d1d5db;
+    padding: 1rem;
+    font-size: 1rem;
+    resize: none;
+    min-height: 200px;
+    line-height: 1.5;
+}
+
+.noteInput:focus {
+    outline: none;
+    border-color: #22d3ee;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Gallery Section (In Right Column - based on user screenshot but inverted? No, user just said "it already has an attatchments area... i want u to replace...") */
+/* User's screenshot had gallery on left, upload on right. Let's keep that logic but sleeker. */
+
+.galleryGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.thumbnailContainer {
+    aspect-ratio: 16/9;
+    background: #0a2636;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.removeBtn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    border: none;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.thumbnailContainer:hover .removeBtn {
+    opacity: 1;
+}
+
+.emptyGallery {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #4b5563;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    min-height: 100px;
+}
+
+/* Upload Area below Gallery */
+.uploadSection {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dropZone {
+    width: 100%;
+    height: 100px;
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255, 255, 255, 0.02);
+    text-align: center;
+}
+
+.dropZone:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: #22d3ee;
+}
+
+.dropText {
+    color: #9ca3af;
+    font-weight: 600;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+
+/* Lightbox */
+.lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 1100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.fullImage {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 4px;
+}
+
+/* Custom confirmation popup */
+.confirmOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 2000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.confirmBox {
+    background: #0b1021;
+    border: 1px solid rgba(30, 58, 138, 0.4);
+    border-radius: 12px;
+    padding: 1.5rem;
+    width: 350px;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+.confirmTitle {
+    color: white;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+}
+
+.confirmActions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.confirmDeleteBtn {
+    background: #4f46e5;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 0.5rem 1.5rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.confirmCancelBtn {
+    background: transparent;
+    color: #9ca3af;
+    border: 1px solid #374151;
+    border-radius: 20px;
+    padding: 0.5rem 1.5rem;
+    font-weight: 600;
+    cursor: pointer;
+}

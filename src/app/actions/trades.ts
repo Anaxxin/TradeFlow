@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import { auth } from '@/auth';
 
 // Type definitions to fix lint errors
 // Interface for local calculations if needed
@@ -144,109 +145,198 @@ export async function deleteTrade(id: string) {
     }
 }
 
+export async function addTradeImage(tradeId: string, imageData: string) {
+    try {
+        const trade = await prisma.trade.findUnique({
+            where: { id: tradeId },
+            select: { images: true }
+        });
+
+        if (!trade) {
+            return { success: false, error: 'Trade not found' };
+        }
+
+        const currentImages = trade.images || [];
+        const updatedImages = [...currentImages, imageData];
+
+        await prisma.trade.update({
+            where: { id: tradeId },
+            data: {
+                images: updatedImages
+            }
+        });
+
+        revalidatePath('/');
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to add trade image:', error);
+        return { success: false, error: 'Failed to add trade image' };
+    }
+}
+
+export async function removeTradeImage(tradeId: string, imageIndex: number) {
+    try {
+        const trade = await prisma.trade.findUnique({
+            where: { id: tradeId },
+            select: { images: true }
+        });
+
+        if (!trade) {
+            return { success: false, error: 'Trade not found' };
+        }
+
+        const currentImages = trade.images || [];
+        const updatedImages = currentImages.filter((_, idx) => idx !== imageIndex);
+
+        await prisma.trade.update({
+            where: { id: tradeId },
+            data: {
+                images: updatedImages
+            }
+        });
+
+        revalidatePath('/');
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to remove trade image:', error);
+        return { success: false, error: 'Failed to remove trade image' };
+    }
+}
+
+export async function updateTradeNotes(tradeId: string, notes: string) {
+    try {
+        await prisma.trade.update({
+            where: { id: tradeId },
+            data: { notes }
+        });
+
+        revalidatePath('/');
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to update trade notes:', error);
+        return { success: false, error: 'Failed to update trade notes' };
+    }
+}
+
+
+
+
+function calculateKPIs(trades: any[]) {
+    const totalTrades = trades.length;
+    const totalPnL = trades.reduce((sum, t) => sum + t.pnl, 0);
+
+    const tradesForWinRate = trades.filter((t) => !t.is_be);
+    const wins = tradesForWinRate.filter((t) => t.pnl > 0);
+    const losses = tradesForWinRate.filter((t) => t.pnl <= 0);
+    const winRate = tradesForWinRate.length > 0 ? wins.length / tradesForWinRate.length : 0;
+
+    const grossWin = wins.reduce((sum, t) => sum + t.pnl, 0);
+    const grossLoss = Math.abs(losses.reduce((sum, t) => sum + t.pnl, 0));
+    const avgWin = wins.length > 0 ? grossWin / wins.length : 0;
+    const avgLoss = losses.length > 0 ? grossLoss / losses.length : 0;
+
+    const tradesWithRisk = trades.filter((t) => {
+        const risk = Math.abs(t.entry_price - (t.stop_loss || t.entry_price));
+        return risk > 0 && !t.is_be;
+    });
+
+    const avgRR = tradesWithRisk.length > 0
+        ? tradesWithRisk.reduce((sum, t) => {
+            const risk = Math.abs(t.entry_price - (t.stop_loss || t.entry_price));
+            const reward = t.direction === 'LONG' ? (t.exit_price - t.entry_price) : (t.entry_price - t.exit_price);
+            return sum + (reward / risk);
+        }, 0) / tradesWithRisk.length
+        : 0;
+
+    return {
+        totalPnL,
+        winRate,
+        avgRR,
+        avgWin,
+        avgLoss,
+        totalTrades
+    };
+}
+
 export async function getDashboardData(accountId?: string) {
     try {
-        const where = accountId ? { account_id: accountId } : {};
+        const session = await auth();
+        if (!session?.user?.id) {
+            return { success: false, error: 'Unauthorized' };
+        }
+
+        if (!accountId) {
+            return {
+                success: true,
+                data: {
+                    trades: [],
+                    stats: {
+                        daily: calculateKPIs([]),
+                        weekly: calculateKPIs([]),
+                        monthly: calculateKPIs([]),
+                        yearly: calculateKPIs([]),
+                        allTime: calculateKPIs([])
+                    },
+                    chartData: [],
+                    calendarData: []
+                }
+            };
+        }
+
+        const account = await prisma.account.findUnique({
+            where: { id: accountId },
+        });
+
+        if (!account || account.userId !== session.user.id) {
+            return { success: false, error: 'Unauthorized Account Access' };
+        }
 
         const trades = await prisma.trade.findMany({
-            where,
+            where: { account_id: accountId },
             orderBy: { exit_time: 'desc' }
         });
 
-        // Calculate KPIs
-        const totalTrades = trades.length;
-        const totalPnL = trades.reduce((sum: number, t: any) => sum + t.pnl, 0);
-
-        // Exclude BE trades from win rate calculation
-        const tradesForWinRate = trades.filter((t: any) => !t.is_be);
-
-        const wins = tradesForWinRate.filter((t: any) => t.pnl > 0);
-        const losses = tradesForWinRate.filter((t: any) => t.pnl <= 0);
-        const winRate = tradesForWinRate.length > 0 ? wins.length / tradesForWinRate.length : 0;
-
-        const grossWin = wins.reduce((sum: number, t: any) => sum + t.pnl, 0);
-        const grossLoss = Math.abs(losses.reduce((sum: number, t: any) => sum + t.pnl, 0));
-
-        const avgWin = wins.length > 0 ? grossWin / wins.length : 0;
-        const avgLoss = losses.length > 0 ? grossLoss / losses.length : 0;
-
-        // Better Avg RR calculation: average of individual trade RRs (exclude BE trades)
-        const tradesWithRisk = trades.filter((t: any) => {
-            const risk = Math.abs(t.entry_price - (t.stop_loss || t.entry_price));
-            return risk > 0 && !t.is_be;
-        });
-
-        const avgRR = tradesWithRisk.length > 0
-            ? tradesWithRisk.reduce((sum: number, t: any) => {
-                const risk = Math.abs(t.entry_price - (t.stop_loss || t.entry_price));
-                const reward = t.direction === 'LONG' ? (t.exit_price - t.entry_price) : (t.entry_price - t.exit_price);
-                return sum + (reward / risk);
-            }, 0) / tradesWithRisk.length
-            : 0;
-
-        // Period Stats (Monthly/Yearly)
         const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
+        const startOfToday = new Date(now);
+        startOfToday.setHours(0, 0, 0, 0);
 
-        const monthlyTrades = trades.filter((t: any) => {
-            const d = new Date(t.exit_time);
-            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-        });
-        const monthlyPnL = monthlyTrades.reduce((sum: number, t: any) => sum + t.pnl, 0);
-        const monthlyTradesCount = monthlyTrades.length;
+        const startOfWeek = new Date(now);
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday or Sunday depending on preference, user said Sunday? Usually US is Sunday. Let's use Sunday.
+        const startOfSunday = new Date(now.setDate(now.getDate() - day));
+        startOfSunday.setHours(0, 0, 0, 0);
 
-        const yearlyTrades = trades.filter((t: any) => {
-            const d = new Date(t.exit_time);
-            return d.getFullYear() === currentYear;
-        });
-        const yearlyPnL = yearlyTrades.reduce((sum: number, t: any) => sum + t.pnl, 0);
-        const yearlyTradesCount = yearlyTrades.length;
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-        // Daily Stats (Today)
-        const currentDate = now.getDate();
-        const dailyTrades = trades.filter((t: any) => {
-            const d = new Date(t.exit_time);
-            return d.getDate() === currentDate && 
-                   d.getMonth() === currentMonth && 
-                   d.getFullYear() === currentYear;
-        });
-        const dailyPnL = dailyTrades.reduce((sum: number, t: any) => sum + t.pnl, 0);
-        const dailyTradesCount = dailyTrades.length;
+        const dailyTrades = trades.filter(t => new Date(t.exit_time) >= startOfToday);
+        const weeklyTrades = trades.filter(t => new Date(t.exit_time) >= startOfSunday);
+        const monthlyTrades = trades.filter(t => new Date(t.exit_time) >= startOfMonth);
+        const yearlyTrades = trades.filter(t => new Date(t.exit_time) >= startOfYear);
 
-        // Peak and Valley PnL (for Max/Min Balance)
+        // Peak and Valley calculations
         let runningPnl = 0;
         let maxPnL = 0;
         let minPnL = 0;
-
-        // Iterate chronologically (oldest to newest)
-        [...trades].reverse().forEach((t: any) => {
+        [...trades].reverse().forEach((t) => {
             runningPnl += t.pnl;
             if (runningPnl > maxPnL) maxPnL = runningPnl;
             if (runningPnl < minPnL) minPnL = runningPnl;
         });
 
-        // Chart Data (Cumulative PnL)
+        // Chart Data
         const pnlByDate: Record<string, number> = {};
-        // Reverse for chart (oldest to newest)
-        [...trades].reverse().forEach((t: any) => {
-            // Use local date to avoid timezone shift issues
+        [...trades].reverse().forEach((t) => {
             const d = new Date(t.exit_time);
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            const dateStr = `${year}-${month}-${day}`;
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             pnlByDate[dateStr] = (pnlByDate[dateStr] || 0) + t.pnl;
         });
 
-        // Calendar Data
         const calendarData = Object.keys(pnlByDate).map(date => {
-            const [y, m, day] = date.split('-');
-            const tradeCount = trades.filter((t: any) => {
-                const d = new Date(t.exit_time);
-                return d.getFullYear() === parseInt(y) &&
-                    (d.getMonth() + 1) === parseInt(m) &&
-                    d.getDate() === parseInt(day);
+            const [y, m, d] = date.split('-').map(Number);
+            const tradeCount = trades.filter(t => {
+                const et = new Date(t.exit_time);
+                return et.getFullYear() === y && (et.getMonth() + 1) === m && et.getDate() === d;
             }).length;
             return { date, pnl: pnlByDate[date], tradeCount };
         });
@@ -259,20 +349,13 @@ export async function getDashboardData(accountId?: string) {
         return {
             success: true,
             data: {
-                trades: trades.slice(0, 50), // Send only 50 to frontend list
-                kpis: {
-                    totalPnL,
-                    winRate,
-                    avgRR,
-                    avgWin,
-                    avgLoss,
-                    totalTrades,
-                    dailyPnL,
-                    dailyTradesCount,
-                    monthlyPnL,
-                    monthlyTradesCount,
-                    yearlyPnL,
-                    yearlyTradesCount,
+                trades: trades.slice(0, 50),
+                stats: {
+                    daily: calculateKPIs(dailyTrades),
+                    weekly: calculateKPIs(weeklyTrades),
+                    monthly: calculateKPIs(monthlyTrades),
+                    yearly: calculateKPIs(yearlyTrades),
+                    allTime: calculateKPIs(trades),
                     maxPnL,
                     minPnL
                 },
@@ -280,7 +363,6 @@ export async function getDashboardData(accountId?: string) {
                 calendarData
             }
         };
-
     } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
         return { success: false, error: 'Failed to fetch data' };

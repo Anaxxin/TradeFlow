@@ -17,12 +17,51 @@
     }
 }
 
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
 .title {
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 0.75rem;
-    /* Reduced from 1rem */
+    margin: 0;
+}
+
+.monthNav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.monthName {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 120px;
+    text-align: center;
+}
+
+.navBtn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.navBtn:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-tertiary);
 }
 
 .grid {

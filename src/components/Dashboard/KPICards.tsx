@@ -3,126 +3,144 @@
 import React, { useState, useEffect } from 'react';
 import styles from './KPICards.module.css';
 
-interface KPIProps {
-    netPnL: number;
+interface StatItem {
+    totalPnL: number;
     winRate: number;
+    avgRR: number;
     avgWin: number;
     avgLoss: number;
     totalTrades: number;
-    dailyPnL: number;
-    dailyTradesCount: number;
-    monthlyPnL: number;
-    monthlyTradesCount: number;
-    yearlyPnL: number;
-    yearlyTradesCount: number;
-    avgRR: number;
 }
 
-const PNL_VIEW_STORAGE_KEY = 'tradezella_pnl_view_preference';
+interface KPIProps {
+    stats: {
+        daily: StatItem;
+        weekly: StatItem;
+        monthly: StatItem;
+        yearly: StatItem;
+        allTime: StatItem;
+    };
+}
 
-const KPICards: React.FC<KPIProps> = ({
-    netPnL, winRate, avgRR, avgWin, avgLoss, totalTrades,
-    dailyPnL, dailyTradesCount, monthlyPnL, monthlyTradesCount, yearlyPnL, yearlyTradesCount
-}) => {
-    // Start with default to avoid hydration mismatch
-    const [pnlView, setPnlView] = useState<'net' | 'daily' | 'monthly' | 'yearly'>('daily');
+type TimeRange = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'allTime';
+
+// Persistence keys
+const STORAGE_KEYS = {
+    pnl: 'tf_pnl_range',
+    winRate: 'tf_winrate_range',
+    avgRR: 'tf_avgrr_range',
+    avgWinLoss: 'tf_avgwinloss_range'
+};
+
+const KPICards: React.FC<KPIProps> = ({ stats }) => {
+    const [pnlRange, setPnlRange] = useState<TimeRange>('allTime');
+    const [winRateRange, setWinRateRange] = useState<TimeRange>('allTime');
+    const [avgRRRange, setAvgRRRange] = useState<TimeRange>('allTime');
+    const [avgWinLossRange, setAvgWinLossRange] = useState<TimeRange>('allTime');
     const [isMounted, setIsMounted] = useState(false);
 
-    // Load preference from localStorage after mount (client-side only)
+    // Load preferences
     useEffect(() => {
         setIsMounted(true);
         if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem(PNL_VIEW_STORAGE_KEY);
-            if (saved && ['net', 'daily', 'monthly', 'yearly'].includes(saved)) {
-                setPnlView(saved as 'net' | 'daily' | 'monthly' | 'yearly');
-            }
+            const p = localStorage.getItem(STORAGE_KEYS.pnl) as TimeRange;
+            const w = localStorage.getItem(STORAGE_KEYS.winRate) as TimeRange;
+            const r = localStorage.getItem(STORAGE_KEYS.avgRR) as TimeRange;
+            const wl = localStorage.getItem(STORAGE_KEYS.avgWinLoss) as TimeRange;
+
+            const valid = ['daily', 'weekly', 'monthly', 'yearly', 'allTime'];
+            if (p && valid.includes(p)) setPnlRange(p);
+            if (w && valid.includes(w)) setWinRateRange(w);
+            if (r && valid.includes(r)) setAvgRRRange(r);
+            if (wl && valid.includes(wl)) setAvgWinLossRange(wl);
         }
     }, []);
 
-    // Save preference to localStorage whenever it changes
+    // Save preferences
     useEffect(() => {
-        if (isMounted && typeof window !== 'undefined') {
-            localStorage.setItem(PNL_VIEW_STORAGE_KEY, pnlView);
-        }
-    }, [pnlView, isMounted]);
+        if (isMounted) localStorage.setItem(STORAGE_KEYS.pnl, pnlRange);
+    }, [pnlRange, isMounted]);
 
-    const getCurrentPnL = () => {
-        switch (pnlView) {
-            case 'daily': return dailyPnL;
-            case 'monthly': return monthlyPnL;
-            case 'yearly': return yearlyPnL;
-            default: return netPnL;
-        }
+    useEffect(() => {
+        if (isMounted) localStorage.setItem(STORAGE_KEYS.winRate, winRateRange);
+    }, [winRateRange, isMounted]);
+
+    useEffect(() => {
+        if (isMounted) localStorage.setItem(STORAGE_KEYS.avgRR, avgRRRange);
+    }, [avgRRRange, isMounted]);
+
+    useEffect(() => {
+        if (isMounted) localStorage.setItem(STORAGE_KEYS.avgWinLoss, avgWinLossRange);
+    }, [avgWinLossRange, isMounted]);
+
+    const renderRangeSelect = (value: TimeRange, onChange: (v: TimeRange) => void) => (
+        <select
+            className={styles.pnlSelect}
+            value={value}
+            onChange={(e) => onChange(e.target.value as TimeRange)}
+            style={{ background: 'transparent', color: 'var(--text-secondary)', border: 'none', fontSize: '0.70rem', cursor: 'pointer', outline: 'none' }}
+        >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+            <option value="allTime">All Time</option>
+        </select>
+    );
+
+    const formatRangeLabel = (range: TimeRange, label: string) => {
+        const prefix = range === 'allTime' ? 'Total' : range.charAt(0).toUpperCase() + range.slice(1);
+        return `${prefix} ${label}`;
     };
 
-    const getCurrentTradeCount = () => {
-        switch (pnlView) {
-            case 'daily': return dailyTradesCount;
-            case 'monthly': return monthlyTradesCount;
-            case 'yearly': return yearlyTradesCount;
-            default: return totalTrades;
-        }
-    };
-
-    const currentPnL = getCurrentPnL();
-    const currentTrades = getCurrentTradeCount();
     return (
         <div className={styles.grid}>
-            {/* Net P&L Card with Dropdown */}
+            {/* P&L Card */}
             <div className={styles.card}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <div className={styles.label}>
-                        {pnlView === 'net' ? 'Net P&L' : pnlView === 'daily' ? 'Daily P&L' : pnlView === 'monthly' ? 'Monthly P&L' : 'Yearly P&L'}
-                    </div>
-                    <select
-                        className={styles.pnlSelect}
-                        value={pnlView}
-                        onChange={(e) => {
-                            const newValue = e.target.value as 'net' | 'daily' | 'monthly' | 'yearly';
-                            setPnlView(newValue);
-                        }}
-                        style={{ background: 'transparent', color: 'var(--text-secondary)', border: 'none', fontSize: '0.75rem', cursor: 'pointer', outline: 'none' }}
-                    >
-                        <option value="net">All Time</option>
-                        <option value="daily">Daily</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="yearly">Yearly</option>
-                    </select>
+                <div className={styles.cardHeader}>
+                    <div className={styles.label}>{formatRangeLabel(pnlRange, 'P&L')}</div>
+                    {renderRangeSelect(pnlRange, setPnlRange)}
                 </div>
-
-                <div className={`${styles.value} ${currentPnL >= 0 ? styles.positive : styles.negative}`}>
-                    ${currentPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className={`${styles.value} ${stats[pnlRange].totalPnL >= 0 ? styles.positive : styles.negative}`}>
+                    ${stats[pnlRange].totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <div className={styles.subtext}>{currentTrades} Trades</div>
+                <div className={styles.subtext}>{stats[pnlRange].totalTrades} Trades</div>
             </div>
 
             {/* Win Rate Card */}
             <div className={styles.card}>
-                <div className={styles.label}>Win Rate</div>
+                <div className={styles.cardHeader}>
+                    <div className={styles.label}>{formatRangeLabel(winRateRange, 'Win Rate')}</div>
+                    {renderRangeSelect(winRateRange, setWinRateRange)}
+                </div>
                 <div className={styles.value}>
-                    {(winRate * 100).toFixed(1)}%
+                    {(stats[winRateRange].winRate * 100).toFixed(1)}%
                 </div>
                 <div className={styles.progressBar}>
-                    <div className={styles.progressFill} style={{ width: `${winRate * 100}%` }}></div>
+                    <div className={styles.progressFill} style={{ width: `${stats[winRateRange].winRate * 100}%` }}></div>
                 </div>
             </div>
 
             {/* Avg RR Card */}
             <div className={styles.card}>
-                <div className={styles.label}>Avg RR</div>
-                <div className={styles.value}>{avgRR.toFixed(2)}</div>
-                <div className={styles.subtext}>
-                    Risk : Reward
+                <div className={styles.cardHeader}>
+                    <div className={styles.label}>{formatRangeLabel(avgRRRange, 'Avg RR')}</div>
+                    {renderRangeSelect(avgRRRange, setAvgRRRange)}
                 </div>
+                <div className={styles.value}>{stats[avgRRRange].avgRR.toFixed(2)}</div>
+                <div className={styles.subtext}>Risk : Reward</div>
             </div>
 
             {/* Avg Win / Loss */}
             <div className={styles.card}>
-                <div className={styles.label}>Avg Win / Loss</div>
+                <div className={styles.cardHeader}>
+                    <div className={styles.label}>{formatRangeLabel(avgWinLossRange, 'Avg Win/Loss')}</div>
+                    {renderRangeSelect(avgWinLossRange, setAvgWinLossRange)}
+                </div>
                 <div className={styles.valueRow}>
-                    <span className={styles.positive}>${avgWin.toFixed(0)}</span>
+                    <span className={styles.positive}>${stats[avgWinLossRange].avgWin.toFixed(0)}</span>
                     <span className={styles.divider}>/</span>
-                    <span className={styles.negative}>${Math.abs(avgLoss).toFixed(0)}</span>
+                    <span className={styles.negative}>${Math.abs(stats[avgWinLossRange].avgLoss).toFixed(0)}</span>
                 </div>
             </div>
         </div>

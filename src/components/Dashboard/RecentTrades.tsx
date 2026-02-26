@@ -4,9 +4,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import styles from './RecentTrades.module.css';
 import EditTradeModal from './EditTradeModal';
 import DeleteTradeModal from './DeleteTradeModal';
+import TradeDetailsModal from './TradeDetailsModal';
 import { deleteTrade } from '@/app/actions/trades';
+import { useRouter } from 'next/navigation';
+
 
 interface Trade {
+
     id: string;
     symbol: string;
     direction: string;
@@ -19,7 +23,10 @@ interface Trade {
     fees: number;
     stopLoss: number;
     is_be?: boolean;
+    images?: string[];
+    notes?: string;
 }
+
 
 const calcRR = (trade: Trade) => {
     if (!trade.stopLoss || trade.stopLoss === trade.entryPrice) return 0;
@@ -42,18 +49,22 @@ const RECENT_TRADES_FILTER_STORAGE_KEY = 'tradezella_recent_trades_filter_prefer
 const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
     const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
     const [deletingTrade, setDeletingTrade] = useState<{ id: string, symbol: string } | null>(null);
-    
+    const [detailsTrade, setDetailsTrade] = useState<Trade | null>(null);
+    const router = useRouter();
+
+
     // Start with default to avoid hydration mismatch
-    const [filterPeriod, setFilterPeriod] = useState<'this-week' | 'last-week' | 'this-month' | 'this-year' | 'all'>('this-week');
+    const [filterPeriod, setFilterPeriod] = useState<'this-week' | 'this-month' | 'this-year' | 'all'>('this-week');
     const [isMounted, setIsMounted] = useState(false);
+
 
     // Load preference from localStorage after mount (client-side only)
     useEffect(() => {
         setIsMounted(true);
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem(RECENT_TRADES_FILTER_STORAGE_KEY);
-            if (saved && ['this-week', 'last-week', 'this-month', 'this-year', 'all'].includes(saved)) {
-                setFilterPeriod(saved as 'this-week' | 'last-week' | 'this-month' | 'this-year' | 'all');
+            if (saved && ['this-week', 'this-month', 'this-year', 'all'].includes(saved)) {
+                setFilterPeriod(saved as 'this-week' | 'this-month' | 'this-year' | 'all');
             }
         }
     }, []);
@@ -67,13 +78,14 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
 
     const handleEditSuccess = () => {
         setEditingTrade(null);
-        window.location.reload();
+        router.refresh();
     };
 
     const handleDeleteSuccess = () => {
         setDeletingTrade(null);
-        window.location.reload();
+        router.refresh();
     };
+
 
     const formatDate = (dateStr: string) => {
         const d = new Date(dateStr);
@@ -100,16 +112,6 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
                 return tradeDate >= monday;
             }
 
-            if (filterPeriod === 'last-week') {
-                const day = now.getDay();
-                const diff = now.getDate() - day - 6; // Previous Monday
-                const lastMonday = new Date(now.setDate(diff));
-                lastMonday.setHours(0, 0, 0, 0);
-                const nextMonday = new Date(lastMonday);
-                nextMonday.setDate(nextMonday.getDate() + 7);
-                return tradeDate >= lastMonday && tradeDate < nextMonday;
-            }
-
             if (filterPeriod === 'this-month') {
                 return tradeDate.getMonth() === now.getMonth() && tradeDate.getFullYear() === now.getFullYear();
             }
@@ -130,7 +132,7 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
                     className={styles.periodSelect}
                     value={filterPeriod}
                     onChange={(e) => {
-                        const newValue = e.target.value as 'this-week' | 'last-week' | 'this-month' | 'this-year' | 'all';
+                        const newValue = e.target.value as 'this-week' | 'this-month' | 'this-year' | 'all';
                         setFilterPeriod(newValue);
                     }}
                     style={{
@@ -145,7 +147,6 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
                     }}
                 >
                     <option value="this-week">This Week</option>
-                    <option value="last-week">Last Week</option>
                     <option value="this-month">This Month</option>
                     <option value="this-year">This Year</option>
                     <option value="all">All Trades</option>
@@ -163,7 +164,7 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
                             <th>Exit</th>
                             <th style={{ textAlign: 'center' }}>P&L</th>
                             <th className={styles.textRight}>RR</th>
-                            <th style={{ width: '50px' }}></th>
+                            <th style={{ width: '80px', paddingLeft: '1.5rem' }}></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -177,42 +178,50 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
                                 pnlClass = styles.lossTrade;
                             }
                             return (
-                            <tr key={trade.id}>
-                                <td className={styles.symbol}>{trade.symbol}</td>
-                                <td>
-                                    <span className={trade.direction === 'LONG' ? styles.badgeLong : styles.badgeShort}>
-                                        {trade.direction}
-                                    </span>
-                                </td>
-                                <td className={styles.date}>{formatDate(trade.date)}</td>
-                                <td>{trade.quantity}</td>
-                                <td>{trade.entryPrice.toFixed(2)}</td>
-                                <td>{trade.exitPrice.toFixed(2)}</td>
-                                <td className={`${styles.pnl} ${trade.pnl >= 0 ? styles.positive : styles.negative}`} style={{ textAlign: 'center' }}>
-                                    <span className={pnlClass}>
-                                        ${trade.pnl.toFixed(2)}
-                                    </span>
-                                </td>
-                                <td className={styles.textRight} style={{ color: calcRR(trade) >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
-                                    {calcRR(trade).toFixed(2)}
-                                </td>
-                                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                    <button
-                                        onClick={() => setEditingTrade(trade)}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem', marginRight: '0.5rem' }}
-                                        title="Edit Trade"
-                                    >
-                                        ✎
-                                    </button>
-                                    <button
-                                        onClick={() => setDeletingTrade({ id: trade.id, symbol: trade.symbol })}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem' }}
-                                        title="Delete Trade"
-                                    >
-                                        🗑️
-                                    </button>
-                                </td>
-                            </tr>
+                                <tr key={trade.id}>
+                                    <td className={styles.symbol}>{trade.symbol}</td>
+                                    <td>
+                                        <span className={trade.direction === 'LONG' ? styles.badgeLong : styles.badgeShort}>
+                                            {trade.direction}
+                                        </span>
+                                    </td>
+                                    <td className={styles.date}>{formatDate(trade.date)}</td>
+                                    <td>{trade.quantity}</td>
+                                    <td>{trade.entryPrice.toFixed(2)}</td>
+                                    <td>{trade.exitPrice.toFixed(2)}</td>
+                                    <td className={`${styles.pnl} ${trade.pnl >= 0 ? styles.positive : styles.negative}`} style={{ textAlign: 'center' }}>
+                                        <span className={pnlClass}>
+                                            ${trade.pnl.toFixed(2)}
+                                        </span>
+                                    </td>
+                                    <td className={styles.textRight} style={{ color: calcRR(trade) >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                                        {calcRR(trade).toFixed(2)}
+                                    </td>
+                                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', paddingLeft: '1.5rem' }}>
+                                        <button
+                                            onClick={() => setDetailsTrade(trade)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1.1rem', marginRight: '0.5rem' }}
+                                            title="Trade Details & Notes"
+                                        >
+                                            📄
+                                        </button>
+                                        <button
+                                            onClick={() => setEditingTrade(trade)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem', marginRight: '0.5rem' }}
+                                            title="Edit Trade"
+                                        >
+                                            ✎
+                                        </button>
+
+                                        <button
+                                            onClick={() => setDeletingTrade({ id: trade.id, symbol: trade.symbol })}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '1rem' }}
+                                            title="Delete Trade"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </td>
+                                </tr>
                             );
                         })}
                         {filteredTrades.length === 0 && (
@@ -240,7 +249,20 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
                     onSuccess={handleDeleteSuccess}
                 />
             )}
+
+            {detailsTrade && (
+                <TradeDetailsModal
+                    trade={detailsTrade as any}
+                    onClose={() => {
+                        setDetailsTrade(null);
+                        router.refresh(); // Ensure fresh data on close
+                    }}
+                />
+            )}
+
+
         </div>
+
     );
 };
 

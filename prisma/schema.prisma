@@ -11,18 +11,35 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  name               String?
+  password           String
+  role               String    @default("USER") // ADMIN, USER
+  subscriptionStatus      String    @default("INACTIVE") // ACTIVE, INACTIVE, CANCELLED
+  subscriptionExpiresAt   DateTime?
+  lastPaymentMethod       String?
+  lastPaymentTransactionId String?
+  accounts                Account[]
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+}
+
 model Account {
-  id                    String         @id @default(uuid())
-  name                  String
-  type                  String // Live, Demo, Prop (Apex, Topstep, etc.)
-  initial_balance       Float
-  max_daily_loss        Float?
-  max_drawdown          Float?
-  is_trailing_drawdown  Boolean        @default(false)
-  trades                Trade[]
-  journal_entries       JournalEntry[]
-  created_at            DateTime       @default(now())
-  updated_at            DateTime       @updatedAt
+  id                   String         @id @default(uuid())
+  userId               String
+  user                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                 String
+  type                 String // Live, Demo, Prop (Apex, Topstep, etc.)
+  initial_balance      Float
+  max_daily_loss       Float?
+  max_drawdown         Float?
+  is_trailing_drawdown Boolean        @default(false)
+  trades               Trade[]
+  journal_entries      JournalEntry[]
+  created_at           DateTime       @default(now())
+  updated_at           DateTime       @updatedAt
 }
 
 model Trade {
@@ -43,6 +60,8 @@ model Trade {
   entry_time      DateTime
   exit_time       DateTime
   setup_tags      String[] // Array of strings for tags
+  notes           String?  // User notes for the specific trade
+  images          String[] // Array of image URLs/Base64
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 }

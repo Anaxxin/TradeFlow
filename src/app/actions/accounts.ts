@@ -2,18 +2,28 @@
 
 import prisma from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import { auth } from '@/auth';
 
 export async function createAccount(
-    name: string, 
-    type: string, 
+    name: string,
+    type: string,
     initialBalance: number,
     maxDailyLoss?: number | null,
     maxDrawdown?: number | null,
     isTrailingDrawdown?: boolean
 ) {
     try {
+        const session = await auth();
+        console.log("CreateAccount Session:", JSON.stringify(session, null, 2));
+
+        if (!session?.user?.id) {
+            console.error("CreateAccount: Unauthorized - No User ID");
+            return { success: false, error: 'Unauthorized' };
+        }
+
         const account = await prisma.account.create({
             data: {
+                userId: session.user.id,
                 name,
                 type,
                 initial_balance: initialBalance,
@@ -23,6 +33,7 @@ export async function createAccount(
             },
         });
 
+        console.log("CreateAccount: Success", account.id);
         revalidatePath('/'); // Refresh dashboard data
         return { success: true, data: account };
     } catch (error) {
@@ -33,7 +44,13 @@ export async function createAccount(
 
 export async function getAccounts() {
     try {
+        const session = await auth();
+        if (!session?.user?.id) {
+            return { success: false, error: 'Unauthorized' };
+        }
+
         const accounts = await prisma.account.findMany({
+            where: { userId: session.user.id },
             orderBy: { created_at: 'desc' },
         });
         return { success: true, data: accounts };
@@ -44,15 +61,29 @@ export async function getAccounts() {
 }
 
 export async function updateAccount(
-    id: string, 
+    id: string,
     name: string,
     type?: string,
-    maxDailyLoss?: number | null, 
-    maxDrawdown?: number | null, 
+    maxDailyLoss?: number | null,
+    maxDrawdown?: number | null,
     isTrailingDrawdown?: boolean
 ) {
     try {
-        const updateData: any = { 
+        const session = await auth();
+        if (!session?.user?.id) {
+            return { success: false, error: 'Unauthorized' };
+        }
+
+        // Verify ownership
+        const existingAccount = await prisma.account.findUnique({
+            where: { id },
+        });
+
+        if (!existingAccount || existingAccount.userId !== session.user.id) {
+            return { success: false, error: 'Unauthorized' };
+        }
+
+        const updateData: any = {
             name,
             max_daily_loss: maxDailyLoss,
             max_drawdown: maxDrawdown,
@@ -78,9 +109,22 @@ export async function updateAccount(
 
 export async function deleteAccount(id: string) {
     try {
-        await prisma.account.delete({
-            where: { id },
+        const session = await auth();
+        if (!session?.user?.id) {
+            return { success: false, error: 'Unauthorized' };
+        }
+
+        // Verify ownership (Prisma deleteMany with where matches both ID and userId is safer/easier)
+        const result = await prisma.account.deleteMany({
+            where: {
+                id,
+                userId: session.user.id
+            },
         });
+
+        if (result.count === 0) {
+            return { success: false, error: 'Account not found or unauthorized' };
+        }
 
         revalidatePath('/');
         return { success: true };
