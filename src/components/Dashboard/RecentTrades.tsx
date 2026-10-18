@@ -10,7 +10,6 @@ import { useRouter } from 'next/navigation';
 
 
 interface Trade {
-
     id: string;
     symbol: string;
     direction: string;
@@ -19,6 +18,8 @@ interface Trade {
     quantity: number;
     pnl: number;
     date: string;
+    entryTime?: string;
+    exitTime?: string;
     commission: number;
     fees: number;
     stopLoss: number;
@@ -29,24 +30,27 @@ interface Trade {
 
 
 const calcRR = (trade: Trade) => {
-    if (!trade.stopLoss || trade.stopLoss === trade.entryPrice) return 0;
-    const risk = Math.abs(trade.entryPrice - trade.stopLoss);
-    const reward = trade.pnl; // Note: pnl is already net. 
-    // Simplified RR calculation based on price points (since pnl uses multiplier)
+    const sl = trade.stopLoss ?? 0;
+    const entry = trade.entryPrice ?? 0;
+    const exit = trade.exitPrice ?? 0;
+    const risk = Math.abs(entry - sl);
+    if (risk <= 0) return 0;
+
     const priceDiff = trade.direction === 'LONG'
-        ? (trade.exitPrice - trade.entryPrice)
-        : (trade.entryPrice - trade.exitPrice);
+        ? (exit - entry)
+        : (entry - exit);
 
     return priceDiff / risk;
 };
 
 interface RecentTradesProps {
     trades: Trade[];
+    onDataRefresh?: () => void;
 }
 
 const RECENT_TRADES_FILTER_STORAGE_KEY = 'tradezella_recent_trades_filter_preference';
 
-const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
+const RecentTrades: React.FC<RecentTradesProps> = ({ trades, onDataRefresh }) => {
     const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
     const [deletingTrade, setDeletingTrade] = useState<{ id: string, symbol: string } | null>(null);
     const [detailsTrade, setDetailsTrade] = useState<Trade | null>(null);
@@ -78,12 +82,20 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
 
     const handleEditSuccess = () => {
         setEditingTrade(null);
-        router.refresh();
+        if (onDataRefresh) {
+            onDataRefresh();
+        } else {
+            router.refresh();
+        }
     };
 
     const handleDeleteSuccess = () => {
         setDeletingTrade(null);
-        router.refresh();
+        if (onDataRefresh) {
+            onDataRefresh();
+        } else {
+            router.refresh();
+        }
     };
 
 
@@ -255,7 +267,11 @@ const RecentTrades: React.FC<RecentTradesProps> = ({ trades }) => {
                     trade={detailsTrade as any}
                     onClose={() => {
                         setDetailsTrade(null);
-                        router.refresh(); // Ensure fresh data on close
+                        if (onDataRefresh) {
+                            onDataRefresh();
+                        } else {
+                            router.refresh();
+                        }
                     }}
                 />
             )}

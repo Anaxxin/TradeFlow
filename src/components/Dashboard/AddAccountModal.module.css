@@ -235,3 +235,56 @@
 .dropdownOption.selected {
     background-color: rgba(59, 130, 246, 0.1);
 }
+@media (max-width: 640px) {
+    .overlay {
+        padding: 0.75rem;
+        box-sizing: border-box;
+    }
+
+    .modal {
+        width: 100%;
+        max-width: 100%;
+        max-height: 92vh;
+        overflow-y: auto;
+    }
+
+    .modalLarge {
+        max-width: 100%;
+    }
+
+    .header {
+        padding: 1rem 1.25rem;
+    }
+
+    .form {
+        padding: 1.25rem;
+        gap: 1rem;
+    }
+
+    .row {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .grid3 {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .grid4 {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .actions {
+        flex-direction: column-reverse;
+        gap: 0.5rem;
+    }
+
+    .submitBtn,
+    .cancelBtn {
+        width: 100%;
+        text-align: center;
+        padding: 0.75rem;
+    }
+}

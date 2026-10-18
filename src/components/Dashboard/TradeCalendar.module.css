@@ -75,29 +75,39 @@
 
 @media (max-width: 640px) {
     .container {
-        padding: 0.75rem 1rem 1.25rem 1rem;
+        padding: 1rem 0.75rem;
     }
 
     .grid {
-        gap: 0.5rem;
-        min-width: 280px;
-        width: max-content;
+        gap: 0.35rem;
+        width: 100%;
+        max-width: 100%;
     }
 
     .dayBox {
-        padding: 0.5rem;
+        padding: 0.25rem;
+        border-radius: 6px;
+        min-height: 44px;
+        gap: 0.1rem;
     }
 
     .dateNum {
-        font-size: 0.875rem;
+        font-size: 0.75rem;
     }
 
     .pnl {
-        font-size: 0.95rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+
+    .tradeCountBadge {
+        font-size: 0.6rem;
+        padding: 1px 3px;
     }
 
     .dayLabel {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
+        padding-bottom: 0.2rem;
     }
 }
 

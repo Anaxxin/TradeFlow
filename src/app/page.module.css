@@ -136,6 +136,11 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .addAccountBtn:hover {
@@ -175,15 +180,79 @@
 }
 
 @media (max-width: 768px) {
-  .balanceDisplay {
+  .addAccountBtn {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+  .header {
+    padding: 0.85rem 1rem;
+    gap: 0.75rem;
+  }
+
+  .logo {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .accountControls {
+    display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.75rem;
+  }
+
+  .accountSelectorWrapper {
+    width: 100%;
+    display: flex;
+    align-items: center;
     gap: 0.5rem;
+  }
+
+  .accountSelect {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .balanceDisplay {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 0.75rem;
+    width: 100%;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-sizing: border-box;
   }
   
   .balanceItem {
     width: 100%;
+    display: flex;
     justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+  }
+
+  .balanceDivider {
+    display: none;
+  }
+
+  .content {
+    padding: 1rem 0.75rem;
+  }
+
+  .midSection {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .chartArea,
+  .calendarArea {
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

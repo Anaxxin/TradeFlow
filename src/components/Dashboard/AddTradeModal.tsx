@@ -32,6 +32,7 @@ const AddTradeModal: React.FC<AddTradeModalProps> = ({ accountId, onClose, onSuc
     const [exitTime, setExitTime] = useState(getCurrentDateTime());
     const [commission, setCommission] = useState('0');
     const [fees, setFees] = useState('0');
+    const [isFutures, setIsFutures] = useState(false);
     const [isBE, setIsBE] = useState(false);
 
     // Calculate Estimated P&L locally
@@ -39,7 +40,7 @@ const AddTradeModal: React.FC<AddTradeModalProps> = ({ accountId, onClose, onSuc
         const entry = parseFloat(entryPrice) || 0;
         const exit = parseFloat(exitPrice) || 0;
         const qty = parseFloat(quantity) || 1;
-        const comm = parseFloat(commission) || 0;
+        const comm = 0;
         const f = parseFloat(fees) || 0;
 
         if (!symbol || entry === 0 || exit === 0) return null;
@@ -101,7 +102,7 @@ const AddTradeModal: React.FC<AddTradeModalProps> = ({ accountId, onClose, onSuc
             quantity: parseInt(quantity) || 1,
             entryTime: eTime,
             exitTime: xTime,
-            commission: parseFloat(commission) || 0,
+            commission: 0,
             fees: parseFloat(fees) || 0,
             isBE: showBEToggle ? isBE : false
         });
@@ -161,18 +162,53 @@ const AddTradeModal: React.FC<AddTradeModalProps> = ({ accountId, onClose, onSuc
                         </div>
                     </div>
 
-                    <div className={styles.grid3}>
+                    <div className={styles.row}>
                         <div className={styles.formGroup}>
-                            <label>Contracts</label>
-                            <input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
+                            <label>Quantity / Contracts</label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={quantity}
+                                onChange={(e) => {
+                                    const newQty = e.target.value;
+                                    setQuantity(newQty);
+                                    if (isFutures) {
+                                        const q = parseFloat(newQty) || 0;
+                                        setFees((q * 1.9).toFixed(2));
+                                    }
+                                }}
+                                required
+                            />
                         </div>
                         <div className={styles.formGroup}>
-                            <label>Commission ($)</label>
-                            <input type="number" step="0.01" value={commission} onChange={(e) => setCommission(e.target.value)} />
-                        </div>
-                        <div className={styles.formGroup}>
-                            <label>Fees ($)</label>
-                            <input type="number" step="0.01" value={fees} onChange={(e) => setFees(e.target.value)} />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <label style={{ marginBottom: 0 }}>Fees ($)</label>
+                                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--accent-primary)', textTransform: 'none' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={isFutures}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setIsFutures(checked);
+                                            if (checked) {
+                                                const q = parseFloat(quantity) || 0;
+                                                setFees((q * 1.9).toFixed(2));
+                                            }
+                                        }}
+                                        style={{ width: 'auto', cursor: 'pointer' }}
+                                    />
+                                    Futures ($1.90/contract)
+                                </label>
+                            </div>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={fees}
+                                onChange={(e) => {
+                                    setFees(e.target.value);
+                                    setIsFutures(false);
+                                }}
+                            />
                         </div>
                     </div>
 

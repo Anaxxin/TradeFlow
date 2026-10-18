@@ -236,13 +236,15 @@ function calculateKPIs(trades: any[]) {
     const avgLoss = losses.length > 0 ? grossLoss / losses.length : 0;
 
     const tradesWithRisk = trades.filter((t) => {
-        const risk = Math.abs(t.entry_price - (t.stop_loss || t.entry_price));
+        const sl = t.stop_loss !== null && t.stop_loss !== undefined ? t.stop_loss : 0;
+        const risk = Math.abs(t.entry_price - sl);
         return risk > 0 && !t.is_be;
     });
 
     const avgRR = tradesWithRisk.length > 0
         ? tradesWithRisk.reduce((sum, t) => {
-            const risk = Math.abs(t.entry_price - (t.stop_loss || t.entry_price));
+            const sl = t.stop_loss !== null && t.stop_loss !== undefined ? t.stop_loss : 0;
+            const risk = Math.abs(t.entry_price - sl);
             const reward = t.direction === 'LONG' ? (t.exit_price - t.entry_price) : (t.entry_price - t.exit_price);
             return sum + (reward / risk);
         }, 0) / tradesWithRisk.length

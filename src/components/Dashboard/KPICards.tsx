@@ -142,6 +142,16 @@ const KPICards: React.FC<KPIProps> = ({ stats }) => {
                     <span className={styles.divider}>/</span>
                     <span className={styles.negative}>${Math.abs(stats[avgWinLossRange].avgLoss).toFixed(0)}</span>
                 </div>
+                {(() => {
+                    const avgWin = stats[avgWinLossRange].avgWin;
+                    const avgLoss = Math.abs(stats[avgWinLossRange].avgLoss);
+                    const ratio = avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : (avgWin > 0 ? '∞' : '0.00');
+                    return (
+                        <div className={styles.subtext}>
+                            Avg Win/Loss Ratio: <span style={{ color: Number(ratio) >= 1 || ratio === '∞' ? 'var(--accent-success)' : 'var(--text-secondary)', fontWeight: 600 }}>{ratio}</span>
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     );

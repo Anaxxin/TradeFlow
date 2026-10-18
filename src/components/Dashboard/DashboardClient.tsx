@@ -2,14 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signOut } from 'next-auth/react'; // Import signOut
-import styles from '../../app/page.module.css'; // Importing from app styles for header
+import { signOut } from 'next-auth/react';
+import styles from '../../app/page.module.css';
 import modalStyles from './AddAccountModal.module.css';
 import AddAccountModal from './AddAccountModal';
 import AddTradeModal from './AddTradeModal';
 import EditAccountModal from './EditAccountModal';
 import DeleteAccountModal from './DeleteAccountModal';
-
+import KPICards from './KPICards';
+import ProfitChart from './ProfitChart';
+import TradeCalendar from './TradeCalendar';
+import RecentTrades from './RecentTrades';
+import { getDashboardData } from '@/app/actions/trades';
 import Link from 'next/link';
 
 interface Account {
@@ -22,29 +26,49 @@ interface Account {
     is_trailing_drawdown?: boolean;
 }
 
+export interface DashboardDataPayload {
+    trades: any[];
+    stats: {
+        daily: { totalPnL: number; winRate: number; avgRR: number; avgWin: number; avgLoss: number; totalTrades: number };
+        weekly: { totalPnL: number; winRate: number; avgRR: number; avgWin: number; avgLoss: number; totalTrades: number };
+        monthly: { totalPnL: number; winRate: number; avgRR: number; avgWin: number; avgLoss: number; totalTrades: number };
+        yearly: { totalPnL: number; winRate: number; avgRR: number; avgWin: number; avgLoss: number; totalTrades: number };
+        allTime: { totalPnL: number; winRate: number; avgRR: number; avgWin: number; avgLoss: number; totalTrades: number };
+        maxPnL: number;
+        minPnL: number;
+    };
+    chartData: { date: string; pnl: number }[];
+    calendarData: { date: string; pnl: number; tradeCount: number }[];
+}
+
 const STORAGE_KEY = 'tradeflow_last_account_id';
 
 export default function DashboardClient({
     initialAccounts,
-    totalPnL = 0,
-    dailyPnL = 0,
-    maxPnL = 0,
-    minPnL = 0,
-    children
+    initialData,
+    initialAccountId
 }: {
-    initialAccounts: Account[],
-    totalPnL?: number,
-    dailyPnL?: number,
-    maxPnL?: number,
-    minPnL?: number,
-    children: React.ReactNode
+    initialAccounts: Account[];
+    initialData: DashboardDataPayload;
+    initialAccountId?: string;
 }) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const urlAccountId = searchParams.get('accountId');
 
     const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
-    const [selectedAccountId, setSelectedAccountId] = useState<string>(urlAccountId || initialAccounts[0]?.id || '');
+    const [selectedAccountId, setSelectedAccountId] = useState<string>(
+        urlAccountId || initialAccountId || initialAccounts[0]?.id || ''
+    );
+
+    // In-memory cache for fast instant account switching: accountId -> DashboardDataPayload
+    const [accountDataCache, setAccountDataCache] = useState<Record<string, DashboardDataPayload>>(() => {
+        const accId = initialAccountId || initialAccounts[0]?.id || '';
+        return accId ? { [accId]: initialData } : {};
+    });
+
+    const [currentData, setCurrentData] = useState<DashboardDataPayload>(initialData);
+    const [isLoadingData, setIsLoadingData] = useState(false);
 
     // Modals
     const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -53,31 +77,117 @@ export default function DashboardClient({
     const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
     const [showNoAccountMessage, setShowNoAccountMessage] = useState(false);
 
-    // Sync state with URL or LocalStorage
+    // Initial mount check from localStorage if no account in query param
     useEffect(() => {
         const storedId = localStorage.getItem(STORAGE_KEY);
-
-        // If no ID in URL but we have one in storage, redirect
-        if (!urlAccountId && storedId && accounts.some(a => a.id === storedId)) {
-            setSelectedAccountId(storedId);
-            router.push(`/dashboard?accountId=${storedId}`);
-        } else if (urlAccountId) {
-            setSelectedAccountId(urlAccountId);
+        if (!urlAccountId && storedId && accounts.some(a => a.id === storedId) && storedId !== selectedAccountId) {
+            handleAccountChange(storedId);
         }
-    }, [urlAccountId, accounts, router]);
+    }, []);
 
-    const handleAccountChange = (id: string) => {
-        setSelectedAccountId(id);
-        localStorage.setItem(STORAGE_KEY, id);
-        router.push(`/dashboard?accountId=${id}`);
+    // Instant switch function
+    const handleAccountChange = async (targetId: string) => {
+        if (!targetId || targetId === selectedAccountId) return;
+
+        // 1. Immediately update UI state & local storage (instant dropdown & badges update)
+        setSelectedAccountId(targetId);
+        localStorage.setItem(STORAGE_KEY, targetId);
+
+        // Shallowly update browser URL without Next.js full page re-render
+        if (typeof window !== 'undefined') {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set('accountId', targetId);
+            window.history.replaceState({ ...window.history.state, as: nextUrl.href, url: nextUrl.href }, '', nextUrl.href);
+        }
+
+        // 2. Check if account data is already in cache: instant switch
+        if (accountDataCache[targetId]) {
+            setCurrentData(accountDataCache[targetId]);
+            return;
+        }
+
+        // 3. Otherwise fetch via Server Action and cache it
+        setIsLoadingData(true);
+        try {
+            const res = await getDashboardData(targetId);
+            if (res.success && res.data) {
+                                const formattedTrades = (res.data.trades || []).map((t: any) => ({
+                    id: t.id,
+                    symbol: t.symbol,
+                    direction: t.direction,
+                    entryPrice: t.entry_price !== undefined ? t.entry_price : t.entryPrice,
+                    exitPrice: t.exit_price !== undefined ? t.exit_price : t.exitPrice,
+                    quantity: t.quantity,
+                    pnl: t.pnl,
+                    date: typeof (t.exit_time || t.exitTime || t.date) === 'string' ? (t.exit_time || t.exitTime || t.date) : new Date(t.exit_time || t.exitTime || t.date).toISOString(),
+                    entryTime: typeof (t.entry_time || t.entryTime) === 'string' ? (t.entry_time || t.entryTime) : new Date(t.entry_time || t.entryTime || t.date).toISOString(),
+                    exitTime: typeof (t.exit_time || t.exitTime) === 'string' ? (t.exit_time || t.exitTime) : new Date(t.exit_time || t.exitTime || t.date).toISOString(),
+                    commission: t.commission,
+                    fees: t.fees,
+                    stopLoss: t.stop_loss !== undefined ? t.stop_loss : t.stopLoss,
+                    is_be: t.is_be,
+                    images: t.images,
+                    notes: t.notes
+                }));
+
+                const payload: DashboardDataPayload = {
+                    trades: formattedTrades,
+                    stats: res.data.stats,
+                    chartData: res.data.chartData || [],
+                    calendarData: res.data.calendarData || []
+                };
+
+                setAccountDataCache(prev => ({ ...prev, [targetId]: payload }));
+                setCurrentData(payload);
+            }
+        } catch (err) {
+            console.error('Failed to load account data:', err);
+        } finally {
+            setIsLoadingData(false);
+        }
     };
 
-    const handleDataRefresh = () => {
-        router.refresh();
+    const handleDataRefresh = async () => {
+        if (!selectedAccountId) return;
+        setIsLoadingData(true);
+        try {
+            const res = await getDashboardData(selectedAccountId);
+            if (res.success && res.data) {
+                                const formattedTrades = (res.data.trades || []).map((t: any) => ({
+                    id: t.id,
+                    symbol: t.symbol,
+                    direction: t.direction,
+                    entryPrice: t.entry_price !== undefined ? t.entry_price : t.entryPrice,
+                    exitPrice: t.exit_price !== undefined ? t.exit_price : t.exitPrice,
+                    quantity: t.quantity,
+                    pnl: t.pnl,
+                    date: typeof (t.exit_time || t.exitTime || t.date) === 'string' ? (t.exit_time || t.exitTime || t.date) : new Date(t.exit_time || t.exitTime || t.date).toISOString(),
+                    entryTime: typeof (t.entry_time || t.entryTime) === 'string' ? (t.entry_time || t.entryTime) : new Date(t.entry_time || t.entryTime || t.date).toISOString(),
+                    exitTime: typeof (t.exit_time || t.exitTime) === 'string' ? (t.exit_time || t.exitTime) : new Date(t.exit_time || t.exitTime || t.date).toISOString(),
+                    commission: t.commission,
+                    fees: t.fees,
+                    stopLoss: t.stop_loss !== undefined ? t.stop_loss : t.stopLoss,
+                    is_be: t.is_be,
+                    images: t.images,
+                    notes: t.notes
+                }));
+
+                const payload: DashboardDataPayload = {
+                    trades: formattedTrades,
+                    stats: res.data.stats,
+                    chartData: res.data.chartData || [],
+                    calendarData: res.data.calendarData || []
+                };
+
+                setAccountDataCache(prev => ({ ...prev, [selectedAccountId]: payload }));
+                setCurrentData(payload);
+            }
+        } finally {
+            setIsLoadingData(false);
+        }
     };
 
     const handleAccountCreate = (newAccount: any) => {
-        // Map Prisma account fields to our Account interface
         const accountData: Account = {
             id: newAccount.id,
             name: newAccount.name,
@@ -88,20 +198,13 @@ export default function DashboardClient({
             is_trailing_drawdown: newAccount.is_trailing_drawdown,
         };
 
-        // Add the new account to local state
         setAccounts(prevAccounts => [accountData, ...prevAccounts]);
-
-        // Select the new account
         setSelectedAccountId(accountData.id);
         localStorage.setItem(STORAGE_KEY, accountData.id);
-
-        // Navigate to the new account and do a full page reload to get fresh data
-        window.location.href = `/dashboard?accountId=${accountData.id}`;
+        window.location.href = '/dashboard?accountId=' + accountData.id;
     };
 
     const handleAccountEdit = (updatedAccount: any) => {
-        // Update the account in the local state immediately
-        // Map Prisma account fields to our Account interface
         const accountUpdate: Account = {
             id: updatedAccount.id,
             name: updatedAccount.name,
@@ -117,16 +220,13 @@ export default function DashboardClient({
                 acc.id === accountUpdate.id ? accountUpdate : acc
             )
         );
-        // Also refresh server data
         router.refresh();
     };
 
     const handleAccountDelete = async (deletedAccountId: string) => {
-        // Find the account to switch to before deletion
         const updatedAccounts = accounts.filter(acc => acc.id !== deletedAccountId);
         let newAccountId = '';
 
-        // If the deleted account was selected, switch to another account
         if (selectedAccountId === deletedAccountId) {
             newAccountId = updatedAccounts.length > 0 ? updatedAccounts[0].id : '';
             if (newAccountId) {
@@ -135,43 +235,23 @@ export default function DashboardClient({
                 localStorage.removeItem(STORAGE_KEY);
             }
         } else {
-            // Keep the current account selected
             newAccountId = selectedAccountId;
         }
 
-        // Use a full page reload to ensure fresh data from server
-        // This is necessary because Next.js may cache server component data
-        // and router.refresh() alone doesn't always clear the cache properly
         if (newAccountId) {
-            window.location.href = `/dashboard?accountId=${newAccountId}`;
+            window.location.href = '/dashboard?accountId=' + newAccountId;
         } else {
             window.location.href = '/dashboard';
         }
     };
 
-    // Sync accounts state when initialAccounts prop changes (after server refresh)
-    useEffect(() => {
-        const accountsChanged = initialAccounts.length !== accounts.length ||
-            initialAccounts.some((acc, idx) => acc.id !== accounts[idx]?.id);
-
-        if (accountsChanged) {
-            setAccounts(initialAccounts);
-            // Update selected account if current one no longer exists
-            if (selectedAccountId && !initialAccounts.some(acc => acc.id === selectedAccountId)) {
-                const newAccountId = initialAccounts.length > 0 ? initialAccounts[0].id : '';
-                setSelectedAccountId(newAccountId);
-                if (newAccountId) {
-                    localStorage.setItem(STORAGE_KEY, newAccountId);
-                    router.push(`/dashboard?accountId=${newAccountId}`);
-                }
-            }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [initialAccounts]);
-
     const selectedAccount = accounts.find(a => a.id === selectedAccountId);
+    const totalPnL = currentData.stats.allTime.totalPnL || 0;
+    const dailyPnL = currentData.stats.daily.totalPnL || 0;
+    const maxPnL = currentData.stats.maxPnL || 0;
+    const minPnL = currentData.stats.minPnL || 0;
 
-    // Calculate max drawdown dollar value for comparison
+    // Calculate max drawdown dollar value
     const maxDrawdownDollarValue = selectedAccount?.max_drawdown
         ? selectedAccount.is_trailing_drawdown
             ? (selectedAccount.initial_balance + maxPnL) * (selectedAccount.max_drawdown / 100)
@@ -191,16 +271,16 @@ export default function DashboardClient({
                 </Link>
 
                 <div className={styles.accountControls}>
-                    {/* 1. Balance (Far Left of controls) */}
+                    {/* 1. Balance Controls */}
                     {selectedAccount && (
-                        <div className={styles.balanceDisplay}>
+                        <div className={styles.balanceDisplay} style={{ transition: 'opacity 0.15s ease', opacity: isLoadingData ? 0.7 : 1 }}>
                             {selectedAccount.max_drawdown && (
                                 <div className={styles.balanceItem}>
                                     <span className={styles.balanceLabel}>Max Drawdown:</span>
-                                    <span className={`${styles.balance} ${isMaxDrawdownReached ? styles.dailyLossLimitWarning : isMaxDrawdownWarning ? styles.maxDrawdownWarning : ''}`}>
+                                    <span className={styles.balance + ' ' + (isMaxDrawdownReached ? styles.dailyLossLimitWarning : isMaxDrawdownWarning ? styles.maxDrawdownWarning : '')}>
                                         {selectedAccount.is_trailing_drawdown
-                                            ? `$${((selectedAccount.initial_balance + maxPnL) * (selectedAccount.max_drawdown / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 })} (${selectedAccount.max_drawdown}%)`
-                                            : `$${selectedAccount.max_drawdown.toLocaleString()}`
+                                            ? '$' + ((selectedAccount.initial_balance + maxPnL) * (selectedAccount.max_drawdown / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' (' + selectedAccount.max_drawdown + '%)'
+                                            : '$' + selectedAccount.max_drawdown.toLocaleString()
                                         }
                                     </span>
                                 </div>
@@ -211,8 +291,8 @@ export default function DashboardClient({
                                 return (
                                     <div className={styles.balanceItem}>
                                         <span className={styles.balanceLabel}>Daily Loss Limit:</span>
-                                        <span className={`${styles.balance} ${isDailyLossLimitReached ? styles.dailyLossLimitWarning : isDailyLossLimitWarning ? styles.dailyLossLimitYellowWarning : ''}`}>
-                                            ${selectedAccount.max_daily_loss.toLocaleString()}
+                                        <span className={styles.balance + ' ' + (isDailyLossLimitReached ? styles.dailyLossLimitWarning : isDailyLossLimitWarning ? styles.dailyLossLimitYellowWarning : '')}>
+                                            {'$' + selectedAccount.max_daily_loss.toLocaleString()}
                                         </span>
                                     </div>
                                 );
@@ -220,21 +300,21 @@ export default function DashboardClient({
                             <div className={styles.balanceDivider}></div>
                             <div className={styles.balanceItem}>
                                 <span className={styles.balanceLabel}>Min:</span>
-                                <span className={styles.balance}>${(selectedAccount.initial_balance + minPnL).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                <span className={styles.balance}>{'$' + (selectedAccount.initial_balance + minPnL).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                             </div>
                             <div className={styles.balanceItem}>
                                 <span className={styles.balanceLabel}>Max:</span>
-                                <span className={styles.balance}>${(selectedAccount.initial_balance + maxPnL).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                <span className={styles.balance}>{'$' + (selectedAccount.initial_balance + maxPnL).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                             </div>
                             <div className={styles.balanceDivider}></div>
                             <div className={styles.balanceItem}>
                                 <span className={styles.balanceLabel}>Initial:</span>
-                                <span className={styles.balance}>${selectedAccount.initial_balance.toLocaleString()}</span>
+                                <span className={styles.balance}>{'$' + selectedAccount.initial_balance.toLocaleString()}</span>
                             </div>
                             <div className={styles.balanceItem}>
                                 <span className={styles.balanceLabel}>Balance:</span>
-                                <span className={`${styles.balance} ${totalPnL > 0 ? styles.balancePositive : totalPnL < 0 ? styles.balanceNegative : ''}`}>
-                                    ${(selectedAccount.initial_balance + totalPnL).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                <span className={styles.balance + ' ' + (totalPnL > 0 ? styles.balancePositive : totalPnL < 0 ? styles.balanceNegative : '')}>
+                                    {'$' + (selectedAccount.initial_balance + totalPnL).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             </div>
                         </div>
@@ -252,6 +332,21 @@ export default function DashboardClient({
                                 <option key={acc.id} value={acc.id}>{acc.name}</option>
                             ))}
                         </select>
+                        {isLoadingData && (
+                            <span
+                                style={{
+                                    display: 'inline-block',
+                                    marginLeft: '8px',
+                                    width: '12px',
+                                    height: '12px',
+                                    border: '2px solid rgba(255,255,255,0.2)',
+                                    borderTopColor: '#3b82f6',
+                                    borderRadius: '50%',
+                                    animation: 'spin 0.6s linear infinite'
+                                }}
+                                title="Loading account data..."
+                            />
+                        )}
                         {selectedAccount && (
                             <button
                                 onClick={() => setIsEditAccountModalOpen(true)}
@@ -274,14 +369,15 @@ export default function DashboardClient({
 
                     {/* Account Type Indicator */}
                     {selectedAccount && (
-                        <span className={`${styles.accountTypeIndicator} ${selectedAccount.type === 'Demo Account' ? styles.green :
+                        <span className={styles.accountTypeIndicator + ' ' + (
+                            selectedAccount.type === 'Demo Account' ? styles.green :
                             selectedAccount.type === 'Prop Account' ? styles.yellow :
-                                styles.red
-                            }`} title={
-                                selectedAccount.type === 'Demo Account' ? 'Demo Account' :
-                                    selectedAccount.type === 'Prop Account' ? 'Prop Firm Account' :
-                                        'Live Account'
-                            }></span>
+                            styles.red
+                        )} title={
+                            selectedAccount.type === 'Demo Account' ? 'Demo Account' :
+                            selectedAccount.type === 'Prop Account' ? 'Prop Firm Account' :
+                            'Live Account'
+                        }></span>
                     )}
 
                     {/* 3. Log Trade Button */}
@@ -301,7 +397,7 @@ export default function DashboardClient({
                         + Log Trade
                     </button>
 
-                    {/* 4. Add Account (Far Right) */}
+                    {/* 4. Add Account */}
                     <button onClick={() => setIsAccountModalOpen(true)} className={styles.addAccountBtn}>
                         + Trade Account
                     </button>
@@ -310,12 +406,12 @@ export default function DashboardClient({
                     <Link
                         href="/dashboard/profile"
                         className={styles.addAccountBtn}
-                        style={{ backgroundColor: 'transparent', border: '1px solid #333', marginLeft: '10px', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                        style={{ backgroundColor: 'transparent', border: '1px solid #333', marginLeft: '10px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
                     >
                         Profile
                     </Link>
 
-                    {/* 6. Sign Out (Far Right) */}
+                    {/* 6. Sign Out */}
                     <button
                         onClick={() => signOut({ callbackUrl: '/login' })}
                         className={styles.addAccountBtn}
@@ -326,7 +422,21 @@ export default function DashboardClient({
                 </div>
             </header>
 
-            {children}
+            {/* Dashboard Content with quick opacity transition when fetching fresh uncached account */}
+            <div className={styles.content} style={{ transition: 'opacity 0.15s ease', opacity: isLoadingData ? 0.75 : 1 }}>
+                <KPICards stats={currentData.stats} />
+
+                <div className={styles.midSection}>
+                    <div className={styles.chartArea}>
+                        <ProfitChart data={currentData.chartData} />
+                    </div>
+                    <div className={styles.calendarArea}>
+                        <TradeCalendar data={currentData.calendarData} accountId={selectedAccountId} trades={currentData.trades} />
+                    </div>
+                </div>
+
+                <RecentTrades trades={currentData.trades} onDataRefresh={handleDataRefresh} />
+            </div>
 
             {isAccountModalOpen && (
                 <AddAccountModal

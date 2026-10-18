@@ -12,8 +12,10 @@ interface EditTradeModalProps {
 }
 
 const EditTradeModal: React.FC<EditTradeModalProps> = ({ trade, onClose, onSuccess }) => {
-    const toLocalISO = (dateStr: string) => {
-        const d = new Date(dateStr);
+    const toLocalISO = (dateVal: any) => {
+        if (!dateVal) return new Date().toISOString().slice(0, 16);
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 16);
         d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
         return d.toISOString().slice(0, 16);
     };
@@ -21,14 +23,14 @@ const EditTradeModal: React.FC<EditTradeModalProps> = ({ trade, onClose, onSucce
     const [formData, setFormData] = useState({
         symbol: trade.symbol,
         direction: trade.direction,
-        entryPrice: trade.entryPrice.toString(),
-        exitPrice: trade.exitPrice.toString(),
-        stopLoss: trade.stopLoss?.toString() || '0',
-        quantity: trade.quantity.toString(),
-        entryTime: toLocalISO(trade.entryTime),
-        exitTime: toLocalISO(trade.exitTime),
-        commission: trade.commission?.toString() || '0',
-        fees: trade.fees?.toString() || '0',
+        entryPrice: (trade.entryPrice !== undefined ? trade.entryPrice : trade.entry_price || '').toString(),
+        exitPrice: (trade.exitPrice !== undefined ? trade.exitPrice : trade.exit_price || '').toString(),
+        stopLoss: (trade.stopLoss !== undefined ? trade.stopLoss : trade.stop_loss || '0').toString(),
+        quantity: (trade.quantity || '1').toString(),
+        entryTime: toLocalISO(trade.entryTime || trade.entry_time || trade.date),
+        exitTime: toLocalISO(trade.exitTime || trade.exit_time || trade.date),
+        commission: (trade.commission || '0').toString(),
+        fees: (trade.fees || '0').toString(),
         isBE: trade.is_be || false
     });
 
@@ -36,7 +38,7 @@ const EditTradeModal: React.FC<EditTradeModalProps> = ({ trade, onClose, onSucce
         const entry = parseFloat(formData.entryPrice) || 0;
         const exit = parseFloat(formData.exitPrice) || 0;
         const qty = parseFloat(formData.quantity) || 1;
-        const comm = parseFloat(formData.commission) || 0;
+        const comm = 0;
         const f = parseFloat(formData.fees) || 0;
 
         if (!formData.symbol || entry === 0 || exit === 0) return null;
@@ -64,6 +66,7 @@ const EditTradeModal: React.FC<EditTradeModalProps> = ({ trade, onClose, onSucce
 
     // Actually, let's assume page.tsx passes enough data.
 
+    const [isFutures, setIsFutures] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -95,7 +98,7 @@ const EditTradeModal: React.FC<EditTradeModalProps> = ({ trade, onClose, onSucce
             quantity: parseInt(formData.quantity),
             entryTime: new Date(formData.entryTime),
             exitTime: new Date(formData.exitTime), // Use exit time for date
-            commission: parseFloat(formData.commission),
+            commission: 0,
             fees: parseFloat(formData.fees),
             isBE: showBEToggle ? formData.isBE : false
         });
@@ -170,30 +173,53 @@ const EditTradeModal: React.FC<EditTradeModalProps> = ({ trade, onClose, onSucce
                         </div>
                     </div>
 
-                    <div className={styles.grid3}>
+                    <div className={styles.row}>
                         <div className={styles.formGroup}>
-                            <label>Quantity</label>
+                            <label>Quantity / Contracts</label>
                             <input
                                 type="number"
+                                min="1"
                                 value={formData.quantity}
-                                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                                onChange={(e) => {
+                                    const newQty = e.target.value;
+                                    const nextState = { ...formData, quantity: newQty };
+                                    if (isFutures) {
+                                        const q = parseFloat(newQty) || 0;
+                                        nextState.fees = (q * 1.9).toFixed(2);
+                                    }
+                                    setFormData(nextState);
+                                }}
                                 required
                             />
                         </div>
                         <div className={styles.formGroup}>
-                            <label>Commission ($)</label>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <label style={{ marginBottom: 0 }}>Fees ($)</label>
+                                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--accent-primary)', textTransform: 'none' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={isFutures}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setIsFutures(checked);
+                                            if (checked) {
+                                                const q = parseFloat(formData.quantity) || 0;
+                                                setFormData(prev => ({ ...prev, fees: (q * 1.9).toFixed(2) }));
+                                            }
+                                        }}
+                                        style={{ width: 'auto', cursor: 'pointer' }}
+                                    />
+                                    Futures ($1.90/contract)
+                                </label>
+                            </div>
                             <input
-                                type="number" step="0.01"
-                                value={formData.commission}
-                                onChange={(e) => setFormData({ ...formData, commission: e.target.value })}
-                            />
-                        </div>
-                        <div className={styles.formGroup}>
-                            <label>Fees ($)</label>
-                            <input
-                                type="number" step="0.01"
+                                type="number"
+                                step="0.01"
                                 value={formData.fees}
-                                onChange={(e) => setFormData({ ...formData, fees: e.target.value })}
+                                onChange={(e) => {
+                                    setFormData({ ...formData, fees: e.target.value });
+                                    setIsFutures(false);
+                                }}
                             />
                         </div>
                     </div>

@@ -13,14 +13,16 @@ interface CalendarDay {
 interface TradeCalendarProps {
     data: CalendarDay[];
     accountId?: string;
+    trades?: any[];
 }
 
-const TradeCalendar: React.FC<TradeCalendarProps> = ({ data, accountId }) => {
+const TradeCalendar: React.FC<TradeCalendarProps> = ({ data, accountId, trades = [] }) => {
     const [viewDate, setViewDate] = React.useState(new Date());
     const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = React.useState(false);
     const [modalContent, setModalContent] = React.useState('');
     const [modalTrades, setModalTrades] = React.useState<any[]>([]);
+    const [journalCache, setJournalCache] = React.useState<Record<string, { content: string; trades?: any[] }>>({});
 
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
@@ -67,16 +69,35 @@ const TradeCalendar: React.FC<TradeCalendarProps> = ({ data, accountId }) => {
             return;
         }
 
+        // Fast instant trades lookup from existing dashboard trades
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dayTradesImmediate = trades.filter((t: any) => {
+            const exitTime = t.exitTime || t.exit_time || t.date;
+            if (!exitTime) return false;
+            const et = new Date(exitTime);
+            return et.getFullYear() === y && (et.getMonth() + 1) === m && et.getDate() === d;
+        });
+
+        const cached = journalCache[dateStr];
         setSelectedDate(dateStr);
-        setModalContent('');
-        setModalTrades([]);
+        setModalContent(cached ? cached.content : '');
+        setModalTrades(cached?.trades || dayTradesImmediate);
         setIsModalOpen(true);
 
+        // Fetch / sync fresh journal note and full images in background without blocking modal
         try {
             const res = await fetch(`/api/journal?date=${dateStr}&accountId=${accountId}`);
             const data = await res.json();
-            if (data.content) setModalContent(data.content);
-            if (data.trades) setModalTrades(data.trades);
+            const noteContent = data.content || '';
+            const fetchedTrades = data.trades && data.trades.length > 0 ? data.trades : dayTradesImmediate;
+
+            setJournalCache(prev => ({
+                ...prev,
+                [dateStr]: { content: noteContent, trades: fetchedTrades }
+            }));
+
+            setModalContent(noteContent);
+            setModalTrades(fetchedTrades);
         } catch (err) {
             console.error('Failed to fetch note', err);
         }
@@ -84,6 +105,10 @@ const TradeCalendar: React.FC<TradeCalendarProps> = ({ data, accountId }) => {
 
     const handleSaveNote = async (date: string, content: string) => {
         if (!accountId) return;
+        setJournalCache(prev => ({
+            ...prev,
+            [date]: { ...prev[date], content }
+        }));
         try {
             await fetch('/api/journal', {
                 method: 'POST',

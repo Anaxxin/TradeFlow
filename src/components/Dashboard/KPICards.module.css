@@ -85,3 +85,23 @@
     color: var(--text-muted);
     font-weight: 400;
 }
+@media (max-width: 640px) {
+    .grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .card {
+        padding: 1rem 1.25rem;
+        min-height: auto;
+    }
+
+    .value {
+        font-size: 1.6rem;
+    }
+
+    .valueRow {
+        font-size: 1.35rem;
+    }
+}

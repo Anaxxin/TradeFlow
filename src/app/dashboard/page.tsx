@@ -1,9 +1,5 @@
 import React from 'react';
 import styles from '../page.module.css';
-import KPICards from '../../components/Dashboard/KPICards';
-import ProfitChart from '../../components/Dashboard/ProfitChart';
-import RecentTrades from '../../components/Dashboard/RecentTrades';
-import TradeCalendar from '../../components/Dashboard/TradeCalendar';
 import DashboardClient from '../../components/Dashboard/DashboardClient';
 import { getAccounts } from '../actions/accounts';
 import { getDashboardData } from '../actions/trades';
@@ -39,7 +35,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
   const dashboardRes = await getDashboardData(effectiveAccountId);
 
-  const data = dashboardRes.success && dashboardRes.data ? dashboardRes.data : {
+  const rawData = dashboardRes.success && dashboardRes.data ? dashboardRes.data : {
     trades: [],
     stats: {
       daily: { totalPnL: 0, winRate: 0, avgRR: 0, avgWin: 0, avgLoss: 0, totalTrades: 0 },
@@ -54,48 +50,37 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     calendarData: []
   };
 
+  const initialData = {
+    trades: rawData.trades.map((t: any) => ({
+      id: t.id,
+      symbol: t.symbol,
+      direction: t.direction,
+      entryPrice: t.entry_price,
+      exitPrice: t.exit_price,
+      quantity: t.quantity,
+      pnl: t.pnl,
+      date: typeof t.exit_time === 'string' ? t.exit_time : (t.exit_time instanceof Date ? t.exit_time.toISOString() : new Date(t.exit_time).toISOString()),
+      entryTime: typeof t.entry_time === 'string' ? t.entry_time : (t.entry_time instanceof Date ? t.entry_time.toISOString() : new Date(t.entry_time).toISOString()),
+      exitTime: typeof t.exit_time === 'string' ? t.exit_time : (t.exit_time instanceof Date ? t.exit_time.toISOString() : new Date(t.exit_time).toISOString()),
+      commission: t.commission,
+      fees: t.fees,
+      stopLoss: t.stop_loss,
+      is_be: t.is_be,
+      images: t.images,
+      notes: t.notes
+    })),
+    stats: rawData.stats,
+    chartData: rawData.chartData,
+    calendarData: rawData.calendarData
+  };
+
   return (
     <main className={styles.main}>
       <DashboardClient
         initialAccounts={accounts || []}
-        totalPnL={data.stats.allTime.totalPnL}
-        dailyPnL={data.stats.daily.totalPnL || 0}
-        maxPnL={data.stats.maxPnL || 0}
-        minPnL={data.stats.minPnL || 0}
-      >
-        <div className={styles.content}>
-          <KPICards stats={data.stats} />
-
-          <div className={styles.midSection}>
-            <div className={styles.chartArea}>
-              <ProfitChart data={data.chartData} />
-            </div>
-            <div className={styles.calendarArea}>
-              <TradeCalendar data={data.calendarData} accountId={effectiveAccountId} />
-            </div>
-          </div>
-
-          <RecentTrades trades={data.trades.map((t: any) => ({
-            id: t.id,
-            symbol: t.symbol,
-            direction: t.direction,
-            entryPrice: t.entry_price,
-            exitPrice: t.exit_price,
-            quantity: t.quantity,
-            pnl: t.pnl,
-            date: t.exit_time.toISOString(),
-            entryTime: t.entry_time.toISOString(),
-            exitTime: t.exit_time.toISOString(),
-            commission: t.commission,
-            fees: t.fees,
-            stopLoss: t.stop_loss,
-            is_be: t.is_be,
-            images: t.images,
-            notes: t.notes
-          }))} />
-
-        </div>
-      </DashboardClient>
+        initialData={initialData}
+        initialAccountId={effectiveAccountId}
+      />
     </main>
   );
 }
